@@ -11,7 +11,7 @@ import re
 # O Streamlit vai injetar a chave secreta aqui:
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 genai.configure(api_key=GEMINI_API_KEY)
-modelo = genai.GenerativeModel('gemini-2.5-flash')
+modelo = genai.GenerativeModel('gemini-3.5 -flash')
 
 def extrair_texto_pdf(arquivo):
     leitor = PyPDF2.PdfReader(arquivo)
