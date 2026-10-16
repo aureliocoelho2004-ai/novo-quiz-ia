@@ -358,4 +358,6 @@ else:
                     html = obter_html_flashcards(dados, titulo_deck, nome_prof_flash)
                     
                     st.success("✅ Flashcards criados!")
-                    st.download_button("📥
+                    st.download_button("📥 Descarregar Flashcards HTML", data=html, file_name="flashcards.html", mime="text/html", use_container_width=True)
+                except Exception as e:
+                    st.error(f"Erro: {e}")
