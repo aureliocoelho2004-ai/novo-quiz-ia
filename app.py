@@ -12,7 +12,7 @@ GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 genai.configure(api_key=GEMINI_API_KEY)
 
 # Voltando para a versão correta que estava a funcionar!
-modelo = genai.GenerativeModel("gemini-3.5-flash")
+modelo = genai.GenerativeModel("gemini-3.8-flash")
 # ==========================================
 # CONTROLO DE ACESSO
 # ==========================================
