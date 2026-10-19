@@ -142,13 +142,10 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
         </style>
     </head>
     <body class="bg-slate-900 text-white flex items-center justify-center min-h-screen p-4">
-        
-        <!-- CORRIGIDO: Áudio com fallback MP3 e OGG para funcionar em todos os telemóveis e iPhones -->
         <audio id="som-palmas" preload="auto">
             <source src="https://www.myinstants.com/media/sounds/applause.mp3" type="audio/mpeg">
             <source src="https://actions.google.com/sounds/v1/crowds/light_applause.ogg" type="audio/ogg">
         </audio>
-
         <div class="w-full max-w-md bg-slate-800 rounded-2xl shadow-2xl p-6 border border-slate-700">
             <h1 class="text-2xl font-extrabold text-center text-indigo-400 mb-1">{titulo_quiz}</h1>
             <p class="text-center text-slate-400 text-sm mb-4 pb-4 border-b border-slate-700">Prof. {nome_professor}</p>
@@ -232,17 +229,12 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
             }}
             
             function mostrarResultado() {{
-                // CORRIGIDO: Tratamento de erro caso o navegador tente bloquear o autoplay do áudio
                 const audioPalmas = document.getElementById('som-palmas');
                 audioPalmas.volume = 0.5;
                 const playPromise = audioPalmas.play();
-                
                 if (playPromise !== undefined) {{
-                    playPromise.catch(error => {{
-                        console.log("O navegador impediu o som de tocar automaticamente.");
-                    }});
+                    playPromise.catch(error => {{ console.log("O navegador impediu o som."); }});
                 }}
-                
                 document.getElementById('tela-pergunta').classList.add('hidden');
                 document.getElementById('barra-progresso').style.width = '100%';
                 document.getElementById('tela-resultado').classList.remove('hidden');
@@ -375,8 +367,20 @@ else:
                     else:
                         dados = gerar_quiz_da_ia(texto, qnt_perguntas)
                         html = obter_html_jogo(dados, titulo_quiz, nome_prof_quiz)
+                        
                         st.success("✅ Quiz criado!")
-                        st.download_button("📥 Descarregar Quiz HTML", data=html, file_name="quiz.html", mime="text/html", use_container_width=True)
+                        
+                        # Novidade: Escolher o nome do arquivo antes de baixar
+                        nome_download_quiz = st.text_input("Dê um nome ao ficheiro antes de descarregar:", value="meu_jogo_quiz", key="nome_arq_quiz")
+                        
+                        st.download_button(
+                            label="📥 Descarregar Quiz HTML", 
+                            data=html, 
+                            file_name=f"{nome_download_quiz}.html", 
+                            mime="text/html", 
+                            use_container_width=True
+                        )
+                        st.info("💡 **Dica de Partilha:** Após descarregar no seu telemóvel, abra a notificação do ficheiro baixado e use o botão nativo de 'Partilhar' do aparelho para enviar diretamente pelo WhatsApp ou Email.")
                 except Exception as e:
                     st.error(f"Erro: {e}")
 
@@ -405,7 +409,19 @@ else:
                     else:
                         dados = gerar_flashcards_da_ia(texto, qnt_cartoes)
                         html = obter_html_flashcards(dados, titulo_deck, nome_prof_flash)
+                        
                         st.success("✅ Flashcards criados!")
-                        st.download_button("📥 Descarregar Flashcards HTML", data=html, file_name="flashcards.html", mime="text/html", use_container_width=True)
+                        
+                        # Novidade: Escolher o nome do arquivo antes de baixar
+                        nome_download_flash = st.text_input("Dê um nome ao ficheiro antes de descarregar:", value="meus_flashcards", key="nome_arq_flash")
+                        
+                        st.download_button(
+                            label="📥 Descarregar Flashcards HTML", 
+                            data=html, 
+                            file_name=f"{nome_download_flash}.html", 
+                            mime="text/html", 
+                            use_container_width=True
+                        )
+                        st.info("💡 **Dica de Partilha:** Após descarregar no seu telemóvel, abra a notificação do ficheiro baixado e use o botão nativo de 'Partilhar' do aparelho para enviar diretamente pelo WhatsApp ou Email.")
                 except Exception as e:
                     st.error(f"Erro: {e}")
