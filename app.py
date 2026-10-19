@@ -86,9 +86,8 @@ def extrair_texto_imagem(arquivo):
     return texto
 
 def processar_arquivo(arquivo):
-    """Função central mais inteligente que também lê o 'tipo' real do ficheiro"""
     nome_arquivo = arquivo.name.lower()
-    tipo_arquivo = arquivo.type # Ajuda a identificar as fotos da câmera
+    tipo_arquivo = arquivo.type 
     
     if nome_arquivo.endswith(".pdf") or tipo_arquivo == "application/pdf":
         return extrair_texto_pdf(arquivo)
@@ -143,7 +142,13 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
         </style>
     </head>
     <body class="bg-slate-900 text-white flex items-center justify-center min-h-screen p-4">
-        <audio id="som-palmas" src="https://actions.google.com/sounds/v1/crowds/light_applause.ogg"></audio>
+        
+        <!-- CORRIGIDO: Áudio com fallback MP3 e OGG para funcionar em todos os telemóveis e iPhones -->
+        <audio id="som-palmas" preload="auto">
+            <source src="https://www.myinstants.com/media/sounds/applause.mp3" type="audio/mpeg">
+            <source src="https://actions.google.com/sounds/v1/crowds/light_applause.ogg" type="audio/ogg">
+        </audio>
+
         <div class="w-full max-w-md bg-slate-800 rounded-2xl shadow-2xl p-6 border border-slate-700">
             <h1 class="text-2xl font-extrabold text-center text-indigo-400 mb-1">{titulo_quiz}</h1>
             <p class="text-center text-slate-400 text-sm mb-4 pb-4 border-b border-slate-700">Prof. {nome_professor}</p>
@@ -174,6 +179,7 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
             const perguntas = {json.dumps(json_perguntas)};
             let indiceAtual = 0; let acertos = 0; let respondido = false;
             document.getElementById('total-questoes').innerText = perguntas.length;
+            
             function carregarPergunta() {{
                 respondido = false;
                 const p = perguntas[indiceAtual];
@@ -191,6 +197,7 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
                     container.appendChild(btn);
                 }});
             }}
+            
             function verificarResposta(indiceSelecionado, botaoClicado) {{
                 if (respondido) return;
                 respondido = true;
@@ -217,13 +224,25 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
                     feedbackTexto.innerHTML = `A resposta certa era: <b>${{p.opcoes[p.resposta_correta]}}</b>.<br><br>${{p.explicacao}}`;
                 }}
             }}
+            
             function proximaPergunta() {{
                 indiceAtual++;
                 if (indiceAtual < perguntas.length) carregarPergunta();
                 else mostrarResultado();
             }}
+            
             function mostrarResultado() {{
-                document.getElementById('som-palmas').play();
+                // CORRIGIDO: Tratamento de erro caso o navegador tente bloquear o autoplay do áudio
+                const audioPalmas = document.getElementById('som-palmas');
+                audioPalmas.volume = 0.5;
+                const playPromise = audioPalmas.play();
+                
+                if (playPromise !== undefined) {{
+                    playPromise.catch(error => {{
+                        console.log("O navegador impediu o som de tocar automaticamente.");
+                    }});
+                }}
+                
                 document.getElementById('tela-pergunta').classList.add('hidden');
                 document.getElementById('barra-progresso').style.width = '100%';
                 document.getElementById('tela-resultado').classList.remove('hidden');
@@ -338,7 +357,6 @@ else:
         nome_prof_quiz = st.text_input("Nome do Professor(a)", placeholder="Ex: Maria João", key="prof_quiz")
         qnt_perguntas = st.number_input("Número de perguntas", min_value=1, max_value=30, value=5, key="qnt_quiz")
         
-        # Escolha do método de envio
         metodo_quiz = st.radio("Como quer enviar o material?", ["📁 Carregar Ficheiro", "📷 Tirar Foto na Hora"], horizontal=True, key="metodo_quiz")
         
         arquivo_final_quiz = None
@@ -353,7 +371,7 @@ else:
                     texto = processar_arquivo(arquivo_final_quiz)
                     
                     if not texto.strip():
-                        st.warning("Não foi possível extrair texto legível desta imagem/ficheiro. Tente com melhor iluminação ou foco.")
+                        st.warning("Não foi possível extrair texto legível desta imagem/ficheiro.")
                     else:
                         dados = gerar_quiz_da_ia(texto, qnt_perguntas)
                         html = obter_html_jogo(dados, titulo_quiz, nome_prof_quiz)
@@ -369,7 +387,6 @@ else:
         nome_prof_flash = st.text_input("Nome do Professor(a)", placeholder="Ex: Maria João", key="prof_flash")
         qnt_cartoes = st.number_input("Número de cartões", min_value=1, max_value=30, value=10, key="qnt_flash")
         
-        # Escolha do método de envio
         metodo_flash = st.radio("Como quer enviar o material?", ["📁 Carregar Ficheiro", "📷 Tirar Foto na Hora"], horizontal=True, key="metodo_flash")
         
         arquivo_final_flash = None
@@ -384,7 +401,7 @@ else:
                     texto = processar_arquivo(arquivo_final_flash)
                     
                     if not texto.strip():
-                        st.warning("Não foi possível extrair texto legível desta imagem/ficheiro. Tente com melhor iluminação ou foco.")
+                        st.warning("Não foi possível extrair texto legível desta imagem/ficheiro.")
                     else:
                         dados = gerar_flashcards_da_ia(texto, qnt_cartoes)
                         html = obter_html_flashcards(dados, titulo_deck, nome_prof_flash)
