@@ -51,13 +51,18 @@ if st.session_state.material_processado:
     st.subheader("2. Configure o seu Jogo")
     
     # Opções para personalizar o Quiz
+   # Opções para personalizar o Quiz (Agora com ENEM e Concursos)
     publico_alvo = st.selectbox(
         "Para quem é este jogo?", 
-        ["Alunos (Ensino Fundamental)", "Alunos (Ensino Médio)", "Filhos (Estudo em Casa)", "Treinamento / Geral"]
-    )
-    
-    quantidade_perguntas = st.slider("Quantas perguntas deseja gerar?", min_value=3, max_value=50, value=5)
-    
+        [
+            "Alunos (Ensino Fundamental)", 
+            "Alunos (Ensino Médio)", 
+            "Estudantes para o ENEM",
+            "Candidatos a Concursos Públicos",
+            "Filhos (Estudo em Casa)", 
+            "Treinamento Corporativo / Geral"
+        ]
+    )    
     if st.button("✨ Gerar Quizz e Flashcards"):
         st.info(f"Em breve: A Inteligência Artificial vai pegar no texto lido e criar um jogo de {quantidade_perguntas} perguntas focado no público: {publico_alvo}.")
         
