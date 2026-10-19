@@ -2,6 +2,9 @@ import streamlit as st
 import google.generativeai as genai
 import PyPDF2
 import docx
+import pptx
+from PIL import Image
+import pytesseract
 import json
 import re
 
@@ -10,9 +13,8 @@ import re
 # ==========================================
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 genai.configure(api_key=GEMINI_API_KEY)
+modelo = genai.GenerativeModel("gemini-3.8-flash") # Use "gemini-1.5-flash" se o limite estiver estourado
 
-# Voltando para a versão correta que estava a funcionar!
-modelo = genai.GenerativeModel("gemini-3.8-flash")
 # ==========================================
 # CONTROLO DE ACESSO
 # ==========================================
@@ -66,8 +68,40 @@ def extrair_texto_docx(arquivo):
     texto = "\n".join([paragrafo.text for paragrafo in doc.paragraphs])
     return texto
 
+def extrair_texto_pptx(arquivo):
+    apresentacao = pptx.Presentation(arquivo)
+    texto = ""
+    for slide in apresentacao.slides:
+        for forma in slide.shapes:
+            if hasattr(forma, "text"):
+                texto += forma.text + "\n"
+    return texto
+
+def extrair_texto_imagem(arquivo):
+    imagem = Image.open(arquivo)
+    try:
+        texto = pytesseract.image_to_string(imagem, lang='por')
+    except Exception:
+        texto = pytesseract.image_to_string(imagem)
+    return texto
+
+def processar_arquivo(arquivo):
+    """Função central para decidir como ler o ficheiro baseado na extensão"""
+    nome_arquivo = arquivo.name.lower()
+    
+    if nome_arquivo.endswith(".pdf"):
+        return extrair_texto_pdf(arquivo)
+    elif nome_arquivo.endswith(".docx"):
+        return extrair_texto_docx(arquivo)
+    elif nome_arquivo.endswith(".pptx"):
+        return extrair_texto_pptx(arquivo)
+    elif nome_arquivo.endswith((".png", ".jpg", ".jpeg")):
+        return extrair_texto_imagem(arquivo)
+    else:
+        raise ValueError("Formato de ficheiro não suportado.")
+
 # ==========================================
-# FUNÇÕES DO QUIZ
+# FUNÇÕES DO QUIZ & FLASHCARDS (IA + HTML)
 # ==========================================
 def gerar_quiz_da_ia(texto_base, num_perguntas):
     prompt = f"""
@@ -82,16 +116,15 @@ def gerar_quiz_da_ia(texto_base, num_perguntas):
       }}
     ]
     A resposta_correta deve ser o índice (0 a 3) da opção certa.
-    
     TEXTO BASE:
     {texto_base[:15000]}
     """
     resposta = modelo.generate_content(prompt)
     texto_resposta = re.sub(r'```json\n?', '', resposta.text)
-    texto_resposta = re.sub(r'```\n?', '', texto_resposta)
-    return json.loads(texto_resposta.strip())
+    return json.loads(re.sub(r'```\n?', '', texto_resposta).strip())
 
 def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
+    # (Mantido exatamente como o seu design incrível)
     html = f"""
     <!DOCTYPE html>
     <html lang="pt-PT">
@@ -203,16 +236,13 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
     """
     return html
 
-# ==========================================
-# FUNÇÕES DOS FLASHCARDS
-# ==========================================
 def gerar_flashcards_da_ia(texto_base, num_cartoes):
     prompt = f"""
-    Baseado no texto abaixo, extraia os {num_cartoes} conceitos, datas ou termos mais importantes para memorização.
-    Retorne APENAS um array JSON válido, sem formatação markdown, com a seguinte estrutura:
+    Baseado no texto abaixo, extraia os {num_cartoes} conceitos, datas ou termos mais importantes.
+    Retorne APENAS um array JSON válido, sem formatação markdown:
     [
       {{
-        "frente": "Nome do Termo, Conceito ou Data",
+        "frente": "Nome do Termo",
         "verso": "Definição clara, direta e fácil de memorizar (máximo de 3 frases)."
       }}
     ]
@@ -221,10 +251,10 @@ def gerar_flashcards_da_ia(texto_base, num_cartoes):
     """
     resposta = modelo.generate_content(prompt)
     texto_resposta = re.sub(r'```json\n?', '', resposta.text)
-    texto_resposta = re.sub(r'```\n?', '', texto_resposta)
-    return json.loads(texto_resposta.strip())
+    return json.loads(re.sub(r'```\n?', '', texto_resposta).strip())
 
 def obter_html_flashcards(json_cartoes, titulo_deck, nome_professor):
+    # (Mantido exatamente como o seu design incrível)
     html = f"""
     <!DOCTYPE html>
     <html lang="pt-PT">
@@ -237,15 +267,9 @@ def obter_html_flashcards(json_cartoes, titulo_deck, nome_professor):
             @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
             body {{ font-family: 'Poppins', sans-serif; }}
             .perspectiva {{ perspective: 1000px; }}
-            .carta-interior {{
-                position: relative; width: 100%; height: 100%; text-align: center;
-                transition: transform 0.6s; transform-style: preserve-3d; cursor: pointer;
-            }}
+            .carta-interior {{ position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.6s; transform-style: preserve-3d; cursor: pointer; }}
             .virada {{ transform: rotateY(180deg); }}
-            .frente, .verso {{
-                position: absolute; width: 100%; height: 100%; backface-visibility: hidden;
-                display: flex; align-items: center; justify-content: center; padding: 1.5rem; border-radius: 1rem;
-            }}
+            .frente, .verso {{ position: absolute; width: 100%; height: 100%; backface-visibility: hidden; display: flex; align-items: center; justify-content: center; padding: 1.5rem; border-radius: 1rem; }}
             .frente {{ background-color: #1e293b; border: 2px solid #475569; }}
             .verso {{ background-color: #4f46e5; transform: rotateY(180deg); }}
         </style>
@@ -254,9 +278,7 @@ def obter_html_flashcards(json_cartoes, titulo_deck, nome_professor):
         <div class="w-full max-w-md bg-slate-800 rounded-2xl shadow-2xl p-6 border border-slate-700">
             <h1 class="text-2xl font-extrabold text-center text-indigo-400 mb-1">{titulo_deck}</h1>
             <p class="text-center text-slate-400 text-sm mb-6 pb-4 border-b border-slate-700">Prof. {nome_professor}</p>
-            <div class="text-center text-sm text-slate-400 mb-4">
-                Cartão <span id="num-atual">1</span> de <span id="total-cartoes"></span>
-            </div>
+            <div class="text-center text-sm text-slate-400 mb-4">Cartão <span id="num-atual">1</span> de <span id="total-cartoes"></span></div>
             <div class="perspectiva h-64 w-full mb-6" onclick="virarCarta()">
                 <div id="carta" class="carta-interior shadow-lg">
                     <div class="frente"><h2 id="texto-frente" class="text-2xl font-bold text-slate-100">Frente</h2></div>
@@ -281,13 +303,8 @@ def obter_html_flashcards(json_cartoes, titulo_deck, nome_professor):
                 }}, 200);
             }}
             function virarCarta() {{ document.getElementById('carta').classList.toggle('virada'); }}
-            function proximoCartao() {{
-                if (indice < cartoes.length - 1) {{ indice++; carregarCartao(); }}
-                else {{ indice = 0; carregarCartao(); }}
-            }}
-            function cartaoAnterior() {{
-                if (indice > 0) {{ indice--; carregarCartao(); }}
-            }}
+            function proximoCartao() {{ if (indice < cartoes.length - 1) {{ indice++; carregarCartao(); }} else {{ indice = 0; carregarCartao(); }} }}
+            function cartaoAnterior() {{ if (indice > 0) {{ indice--; carregarCartao(); }} }}
             carregarCartao();
         </script>
     </body>
@@ -300,6 +317,9 @@ def obter_html_flashcards(json_cartoes, titulo_deck, nome_professor):
 # ==========================================
 st.set_page_config(page_title="Quizify", layout="centered")
 
+# Lista de formatos permitidos atualizada
+FORMATOS_PERMITIDOS = ["pdf", "docx", "pptx", "png", "jpg", "jpeg"]
+
 if not st.session_state["autenticado"]:
     tela_login()
 else:
@@ -309,9 +329,8 @@ else:
             logout()
             
     st.title("🎲 Quizify")
-    st.write("Transforme o seu material de estudo em ferramentas interativas!")
+    st.write("Transforme o seu material de estudo (PDF, Word, PowerPoint ou Imagens) em jogos interativos!")
     
-    # Criar as abas
     aba_quiz, aba_flashcards = st.tabs(["📝 Gerar Quiz", "🃏 Gerar Flashcards"])
 
     # CONTEÚDO DA ABA 1 (QUIZ)
@@ -321,22 +340,23 @@ else:
         nome_prof_quiz = st.text_input("Nome do Professor(a)", placeholder="Ex: Maria João", key="prof_quiz")
         qnt_perguntas = st.number_input("Número de perguntas", min_value=1, max_value=30, value=5, key="qnt_quiz")
         
-        arquivo_quiz = st.file_uploader("Envie o material (PDF/Word)", type=["pdf", "docx"], key="arq_quiz")
+        # Uploader agora aceita pptx e imagens
+        arquivo_quiz = st.file_uploader("Envie o material", type=FORMATOS_PERMITIDOS, key="arq_quiz")
         
         if arquivo_quiz and st.button("✨ Gerar Jogo", use_container_width=True, key="btn_quiz"):
             with st.spinner("A analisar o documento e a criar o Quiz..."):
                 try:
-                    # CORRIGIDO: Agora usa .lower() para evitar erro com extensões em maiúsculas
-                    if arquivo_quiz.name.lower().endswith(".pdf"):
-                        texto = extrair_texto_pdf(arquivo_quiz)
+                    # Função central toma conta de ler a extensão certa
+                    texto = processar_arquivo(arquivo_quiz)
+                    
+                    if not texto.strip():
+                        st.warning("Não foi possível extrair texto legível deste ficheiro.")
                     else:
-                        texto = extrair_texto_docx(arquivo_quiz)
-                    
-                    dados = gerar_quiz_da_ia(texto, qnt_perguntas)
-                    html = obter_html_jogo(dados, titulo_quiz, nome_prof_quiz)
-                    
-                    st.success("✅ Quiz criado!")
-                    st.download_button("📥 Descarregar Quiz HTML", data=html, file_name="quiz.html", mime="text/html", use_container_width=True)
+                        dados = gerar_quiz_da_ia(texto, qnt_perguntas)
+                        html = obter_html_jogo(dados, titulo_quiz, nome_prof_quiz)
+                        
+                        st.success("✅ Quiz criado!")
+                        st.download_button("📥 Descarregar Quiz HTML", data=html, file_name="quiz.html", mime="text/html", use_container_width=True)
                 except Exception as e:
                     st.error(f"Erro: {e}")
 
@@ -347,21 +367,22 @@ else:
         nome_prof_flash = st.text_input("Nome do Professor(a)", placeholder="Ex: Maria João", key="prof_flash")
         qnt_cartoes = st.number_input("Número de cartões", min_value=1, max_value=30, value=10, key="qnt_flash")
         
-        arquivo_flash = st.file_uploader("Envie o material (PDF/Word)", type=["pdf", "docx"], key="arq_flash")
+        # Uploader agora aceita pptx e imagens
+        arquivo_flash = st.file_uploader("Envie o material", type=FORMATOS_PERMITIDOS, key="arq_flash")
         
         if arquivo_flash and st.button("✨ Gerar Flashcards", use_container_width=True, key="btn_flash"):
             with st.spinner("A extrair os conceitos mais importantes..."):
                 try:
-                    # CORRIGIDO: Agora usa .lower() para evitar erro com extensões em maiúsculas
-                    if arquivo_flash.name.lower().endswith(".pdf"):
-                        texto = extrair_texto_pdf(arquivo_flash)
+                    # Função central toma conta de ler a extensão certa
+                    texto = processar_arquivo(arquivo_flash)
+                    
+                    if not texto.strip():
+                        st.warning("Não foi possível extrair texto legível deste ficheiro.")
                     else:
-                        texto = extrair_texto_docx(arquivo_flash)
-                    
-                    dados = gerar_flashcards_da_ia(texto, qnt_cartoes)
-                    html = obter_html_flashcards(dados, titulo_deck, nome_prof_flash)
-                    
-                    st.success("✅ Flashcards criados!")
-                    st.download_button("📥 Descarregar Flashcards HTML", data=html, file_name="flashcards.html", mime="text/html", use_container_width=True)
+                        dados = gerar_flashcards_da_ia(texto, qnt_cartoes)
+                        html = obter_html_flashcards(dados, titulo_deck, nome_prof_flash)
+                        
+                        st.success("✅ Flashcards criados!")
+                        st.download_button("📥 Descarregar Flashcards HTML", data=html, file_name="flashcards.html", mime="text/html", use_container_width=True)
                 except Exception as e:
                     st.error(f"Erro: {e}")
