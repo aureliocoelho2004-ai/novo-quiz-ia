@@ -9,7 +9,7 @@ st.title("🧩 Quizify")
 st.markdown("### Transforme qualquer material num jogo interativo")
 st.write("Crie quizzes e flashcards a partir de PDFs para os seus alunos, filhos ou para o seu próprio estudo.")
 
-# 1. Memória da aplicação (para não perder os dados e os botões não sumirem)
+# 1. Memória da aplicação
 if "material_processado" not in st.session_state:
     st.session_state.material_processado = False
 if "texto_extraido" not in st.session_state:
@@ -25,7 +25,6 @@ if arquivo_pdf is not None:
     if st.button("Analisar Documento", type="primary"):
         with st.spinner("A extrair informações do documento..."):
             try:
-                # Leitura do PDF
                 leitor_pdf = PyPDF2.PdfReader(arquivo_pdf)
                 texto = ""
                 
@@ -45,26 +44,26 @@ if arquivo_pdf is not None:
             except Exception as e:
                 st.error(f"❌ Erro ao ler o arquivo: {e}")
 
-# 4. Área de Geração do Jogo (Só aparece depois do PDF ser lido com sucesso)
+# 4. Área de Geração do Jogo
 if st.session_state.material_processado:
     st.markdown("---")
     st.subheader("2. Configure o seu Jogo")
     
-    # Opções para personalizar o Quiz
-   # Opções para personalizar o Quiz (Agora com ENEM e Concursos)
+    # Opções para personalizar o Quiz (Com Ensino Superior incluído)
     publico_alvo = st.selectbox(
         "Para quem é este jogo?", 
         [
             "Alunos (Ensino Fundamental)", 
             "Alunos (Ensino Médio)", 
+            "Alunos (Ensino Superior)",
             "Estudantes para o ENEM",
             "Candidatos a Concursos Públicos",
             "Filhos (Estudo em Casa)", 
             "Treinamento Corporativo / Geral"
         ]
-    )    
+    )
+    
+    quantidade_perguntas = st.slider("Quantas perguntas deseja gerar?", min_value=3, max_value=15, value=5)
+    
     if st.button("✨ Gerar Quizz e Flashcards"):
         st.info(f"Em breve: A Inteligência Artificial vai pegar no texto lido e criar um jogo de {quantidade_perguntas} perguntas focado no público: {publico_alvo}.")
-        
-        # Aqui, no futuro, colocaremos o código que envia o st.session_state.texto_extraido 
-        # para a API (como a da OpenAI/ChatGPT ou Claude) devolver o código HTML do joguinho.
