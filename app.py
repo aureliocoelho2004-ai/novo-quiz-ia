@@ -10,7 +10,8 @@ import re
 # ==========================================
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 genai.configure(api_key=GEMINI_API_KEY)
-modelo = genai.GenerativeModel("gemini-3.5-flash")
+# CORRIGIDO: Utilizando o modelo correto e atual da Google
+modelo = genai.GenerativeModel("gemini-1.5-flash")
 
 # ==========================================
 # CONTROLO DE ACESSO
@@ -56,7 +57,8 @@ def extrair_texto_pdf(arquivo):
     leitor = PyPDF2.PdfReader(arquivo)
     texto = ""
     for pagina in leitor.pages:
-        texto += pagina.extract_text() + "\n"
+        if pagina.extract_text():
+            texto += pagina.extract_text() + "\n"
     return texto
 
 def extrair_texto_docx(arquivo):
@@ -324,7 +326,8 @@ else:
         if arquivo_quiz and st.button("✨ Gerar Jogo", use_container_width=True, key="btn_quiz"):
             with st.spinner("A analisar o documento e a criar o Quiz..."):
                 try:
-                    if arquivo_quiz.name.endswith(".pdf"):
+                    # CORRIGIDO: Agora usa .lower() para evitar erro com extensões em maiúsculas
+                    if arquivo_quiz.name.lower().endswith(".pdf"):
                         texto = extrair_texto_pdf(arquivo_quiz)
                     else:
                         texto = extrair_texto_docx(arquivo_quiz)
@@ -349,7 +352,8 @@ else:
         if arquivo_flash and st.button("✨ Gerar Flashcards", use_container_width=True, key="btn_flash"):
             with st.spinner("A extrair os conceitos mais importantes..."):
                 try:
-                    if arquivo_flash.name.endswith(".pdf"):
+                    # CORRIGIDO: Agora usa .lower() para evitar erro com extensões em maiúsculas
+                    if arquivo_flash.name.lower().endswith(".pdf"):
                         texto = extrair_texto_pdf(arquivo_flash)
                     else:
                         texto = extrair_texto_docx(arquivo_flash)
