@@ -10,8 +10,9 @@ import re
 # ==========================================
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 genai.configure(api_key=GEMINI_API_KEY)
-# CORRIGIDO: Utilizando o modelo correto e atual da Google
-modelo = genai.GenerativeModel("gemini-pro")
+
+# Voltando para a versão correta que estava a funcionar!
+modelo = genai.GenerativeModel("gemini-3.5-flash")
 # ==========================================
 # CONTROLO DE ACESSO
 # ==========================================
