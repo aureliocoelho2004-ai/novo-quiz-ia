@@ -1,4 +1,4 @@
-import streamlit as st
+Eimport streamlit as st
 import google.generativeai as genai
 import PyPDF2
 import docx
@@ -11,7 +11,7 @@ import re
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 genai.configure(api_key=GEMINI_API_KEY)
 # CORRIGIDO: Utilizando o modelo correto e atual da Google
-modelo = genai.GenerativeModel("gemini 1.5-flash")
+modelo = genai.GenerativeModel("gemini-1.5-flash")
 
 # ==========================================
 # CONTROLO DE ACESSO
