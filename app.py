@@ -13,7 +13,7 @@ import re
 # ==========================================
 GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
 genai.configure(api_key=GEMINI_API_KEY)
-modelo = genai.GenerativeModel("gemini-3.8-flash") # Use "gemini-1.5-flash" se o limite estiver estourado
+modelo = genai.GenerativeModel("gemini-3.8-flash") 
 
 # ==========================================
 # CONTROLO DE ACESSO
@@ -86,16 +86,17 @@ def extrair_texto_imagem(arquivo):
     return texto
 
 def processar_arquivo(arquivo):
-    """Função central para decidir como ler o ficheiro baseado na extensão"""
+    """Função central mais inteligente que também lê o 'tipo' real do ficheiro"""
     nome_arquivo = arquivo.name.lower()
+    tipo_arquivo = arquivo.type # Ajuda a identificar as fotos da câmera
     
-    if nome_arquivo.endswith(".pdf"):
+    if nome_arquivo.endswith(".pdf") or tipo_arquivo == "application/pdf":
         return extrair_texto_pdf(arquivo)
-    elif nome_arquivo.endswith(".docx"):
+    elif nome_arquivo.endswith(".docx") or "wordprocessingml" in tipo_arquivo:
         return extrair_texto_docx(arquivo)
-    elif nome_arquivo.endswith(".pptx"):
+    elif nome_arquivo.endswith(".pptx") or "presentationml" in tipo_arquivo:
         return extrair_texto_pptx(arquivo)
-    elif nome_arquivo.endswith((".png", ".jpg", ".jpeg")):
+    elif nome_arquivo.endswith((".png", ".jpg", ".jpeg")) or tipo_arquivo.startswith("image/"):
         return extrair_texto_imagem(arquivo)
     else:
         raise ValueError("Formato de ficheiro não suportado.")
@@ -124,7 +125,6 @@ def gerar_quiz_da_ia(texto_base, num_perguntas):
     return json.loads(re.sub(r'```\n?', '', texto_resposta).strip())
 
 def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
-    # (Mantido exatamente como o seu design incrível)
     html = f"""
     <!DOCTYPE html>
     <html lang="pt-PT">
@@ -254,7 +254,6 @@ def gerar_flashcards_da_ia(texto_base, num_cartoes):
     return json.loads(re.sub(r'```\n?', '', texto_resposta).strip())
 
 def obter_html_flashcards(json_cartoes, titulo_deck, nome_professor):
-    # (Mantido exatamente como o seu design incrível)
     html = f"""
     <!DOCTYPE html>
     <html lang="pt-PT">
@@ -317,7 +316,6 @@ def obter_html_flashcards(json_cartoes, titulo_deck, nome_professor):
 # ==========================================
 st.set_page_config(page_title="Quizify", layout="centered")
 
-# Lista de formatos permitidos atualizada
 FORMATOS_PERMITIDOS = ["pdf", "docx", "pptx", "png", "jpg", "jpeg"]
 
 if not st.session_state["autenticado"]:
@@ -340,21 +338,25 @@ else:
         nome_prof_quiz = st.text_input("Nome do Professor(a)", placeholder="Ex: Maria João", key="prof_quiz")
         qnt_perguntas = st.number_input("Número de perguntas", min_value=1, max_value=30, value=5, key="qnt_quiz")
         
-        # Uploader agora aceita pptx e imagens
-        arquivo_quiz = st.file_uploader("Envie o material", type=FORMATOS_PERMITIDOS, key="arq_quiz")
+        # Escolha do método de envio
+        metodo_quiz = st.radio("Como quer enviar o material?", ["📁 Carregar Ficheiro", "📷 Tirar Foto na Hora"], horizontal=True, key="metodo_quiz")
         
-        if arquivo_quiz and st.button("✨ Gerar Jogo", use_container_width=True, key="btn_quiz"):
+        arquivo_final_quiz = None
+        if metodo_quiz == "📁 Carregar Ficheiro":
+            arquivo_final_quiz = st.file_uploader("Envie o material", type=FORMATOS_PERMITIDOS, key="arq_quiz")
+        else:
+            arquivo_final_quiz = st.camera_input("Tire uma foto legível do caderno/quadro", key="cam_quiz")
+        
+        if arquivo_final_quiz and st.button("✨ Gerar Jogo", use_container_width=True, key="btn_quiz"):
             with st.spinner("A analisar o documento e a criar o Quiz..."):
                 try:
-                    # Função central toma conta de ler a extensão certa
-                    texto = processar_arquivo(arquivo_quiz)
+                    texto = processar_arquivo(arquivo_final_quiz)
                     
                     if not texto.strip():
-                        st.warning("Não foi possível extrair texto legível deste ficheiro.")
+                        st.warning("Não foi possível extrair texto legível desta imagem/ficheiro. Tente com melhor iluminação ou foco.")
                     else:
                         dados = gerar_quiz_da_ia(texto, qnt_perguntas)
                         html = obter_html_jogo(dados, titulo_quiz, nome_prof_quiz)
-                        
                         st.success("✅ Quiz criado!")
                         st.download_button("📥 Descarregar Quiz HTML", data=html, file_name="quiz.html", mime="text/html", use_container_width=True)
                 except Exception as e:
@@ -367,21 +369,25 @@ else:
         nome_prof_flash = st.text_input("Nome do Professor(a)", placeholder="Ex: Maria João", key="prof_flash")
         qnt_cartoes = st.number_input("Número de cartões", min_value=1, max_value=30, value=10, key="qnt_flash")
         
-        # Uploader agora aceita pptx e imagens
-        arquivo_flash = st.file_uploader("Envie o material", type=FORMATOS_PERMITIDOS, key="arq_flash")
+        # Escolha do método de envio
+        metodo_flash = st.radio("Como quer enviar o material?", ["📁 Carregar Ficheiro", "📷 Tirar Foto na Hora"], horizontal=True, key="metodo_flash")
         
-        if arquivo_flash and st.button("✨ Gerar Flashcards", use_container_width=True, key="btn_flash"):
+        arquivo_final_flash = None
+        if metodo_flash == "📁 Carregar Ficheiro":
+            arquivo_final_flash = st.file_uploader("Envie o material", type=FORMATOS_PERMITIDOS, key="arq_flash")
+        else:
+            arquivo_final_flash = st.camera_input("Tire uma foto legível do caderno/quadro", key="cam_flash")
+        
+        if arquivo_final_flash and st.button("✨ Gerar Flashcards", use_container_width=True, key="btn_flash"):
             with st.spinner("A extrair os conceitos mais importantes..."):
                 try:
-                    # Função central toma conta de ler a extensão certa
-                    texto = processar_arquivo(arquivo_flash)
+                    texto = processar_arquivo(arquivo_final_flash)
                     
                     if not texto.strip():
-                        st.warning("Não foi possível extrair texto legível deste ficheiro.")
+                        st.warning("Não foi possível extrair texto legível desta imagem/ficheiro. Tente com melhor iluminação ou foco.")
                     else:
                         dados = gerar_flashcards_da_ia(texto, qnt_cartoes)
                         html = obter_html_flashcards(dados, titulo_deck, nome_prof_flash)
-                        
                         st.success("✅ Flashcards criados!")
                         st.download_button("📥 Descarregar Flashcards HTML", data=html, file_name="flashcards.html", mime="text/html", use_container_width=True)
                 except Exception as e:
