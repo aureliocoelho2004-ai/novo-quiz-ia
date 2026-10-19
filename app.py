@@ -38,7 +38,7 @@ aba_arquivo, aba_camera = st.tabs(["📁 Enviar Arquivo", "📷 Tirar Foto na Ho
 arquivo = None
 
 with aba_arquivo:
-    arquivo_upload = st.file_uploader("Faça o upload do documento (PDF, PNG, JPG, JPEG)", type=["pdf", "png", "jpg", "jpeg"])
+    arquivo_upload = st.file_uploader("Faça o upload do documento (PDF, DOCX, PPTX, PNG, JPG, JPEG)", type=["pdf", "png", "jpg", "jpeg"])
     if arquivo_upload is not None:
         arquivo = arquivo_upload
 
@@ -98,7 +98,7 @@ if st.session_state.material_processado:
             with st.spinner(f"A Inteligência Artificial (Gemini) está a criar {quantidade_perguntas} perguntas e flashcards..."):
                 try:
                     # Configurar o modelo (Usando o Flash, que é rápido e barato)
-                    model = genai.GenerativeModel('gemini-1.5-flash')
+                    model = genai.GenerativeModel('gemini-3.8-flash')
                     
                     # O "Prompt" (Instrução) que enviamos ao Gemini
                     prompt = f"""
