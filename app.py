@@ -187,6 +187,7 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
         <div class="w-full max-w-md bg-slate-800 rounded-2xl shadow-2xl p-6 border border-slate-700">
             <h1 class="text-2xl font-extrabold text-center text-indigo-400 mb-1">{titulo_seguro}</h1>
             <p class="text-center text-slate-400 text-sm mb-4 pb-4 border-b border-slate-700">Prof. {nome_prof_seguro}</p>
+            
             <div class="flex justify-between items-center mb-6">
                 <div class="text-sm font-semibold text-slate-400">Questão <span id="num-questao">1</span>/<span id="total-questoes"></span></div>
                 <div class="text-sm font-semibold text-indigo-400">Desempenho: <span id="pontuacao">0%</span></div>
@@ -194,15 +195,22 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
             <div class="w-full bg-slate-700 rounded-full h-2.5 mb-6">
                 <div id="barra-progresso" class="bg-indigo-500 h-2.5 rounded-full transition-all duration-500" style="width: 0%"></div>
             </div>
+            
             <div id="tela-pergunta">
-                <h2 id="texto-pergunta" class="text-xl font-bold mb-6 text-center text-slate-100">A carregar...</h2>
+                <h2 id="texto-pergunta" class="text-xl font-bold mb-4 text-center text-slate-100">A carregar...</h2>
+                
+                <!-- DICA ANIMADA QUE DESAPARECE -->
+                <p id="dica-interacao" class="text-center text-indigo-300 text-xs mb-4 animate-pulse italic">👉 Toque numa opção para responder!</p>
+                
                 <div id="opcoes-container" class="flex flex-col gap-3"></div>
+                
                 <div id="tela-feedback" class="hidden mt-6 p-4 rounded-xl text-center">
                     <h3 id="feedback-titulo" class="font-bold text-lg mb-2"></h3>
                     <p id="feedback-texto" class="text-sm text-slate-200"></p>
                     <button onclick="proximaPergunta()" class="mt-4 w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-lg">Continuar</button>
                 </div>
             </div>
+            
             <div id="tela-resultado" class="hidden text-center">
                 <div class="text-6xl mb-4">🏆</div>
                 <h2 class="text-2xl font-bold mb-2">Fim de Jogo!</h2>
@@ -236,6 +244,11 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
             function verificarResposta(indiceSelecionado, botaoClicado) {{
                 if (respondido) return;
                 respondido = true;
+                
+                // ESCONDER A DICA APÓS O PRIMEIRO CLIQUE
+                const dica = document.getElementById('dica-interacao');
+                if(dica) dica.style.display = 'none';
+                
                 const botoes = document.querySelectorAll('.btn-opcao');
                 botoes.forEach(b => b.disabled = true);
                 const p = perguntas[indiceAtual];
@@ -243,6 +256,7 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
                 const feedbackTitulo = document.getElementById('feedback-titulo');
                 const feedbackTexto = document.getElementById('feedback-texto');
                 telaFeedback.classList.remove('hidden');
+                
                 if (indiceSelecionado === p.resposta_correta) {{
                     botaoClicado.classList.add('correto'); acertos++;
                     document.getElementById('pontuacao').innerText = Math.round((acertos / perguntas.length) * 100) + '%';
