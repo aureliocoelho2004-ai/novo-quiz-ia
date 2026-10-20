@@ -200,7 +200,7 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
                 <h2 id="texto-pergunta" class="text-xl font-bold mb-4 text-center text-slate-100">A carregar...</h2>
                 
                 <!-- DICA ANIMADA QUE DESAPARECE -->
-                <p id="dica-interacao" class="text-center text-indigo-300 text-xs mb-4 animate-pulse italic">👉 Toque numa opção para responder!</p>
+                <p id="dica-interacao" class="text-center text-red-500 text-xs mb-4 animate-pulse italic">👉 Toque numa opção para responder!</p>
                 
                 <div id="opcoes-container" class="flex flex-col gap-3"></div>
                 
