@@ -26,8 +26,8 @@ USUARIOS_AUTORIZADOS = {
     "professor": "aula123"         
 }
 
-TAMANHO_MAXIMO_MB = 10
-COOLDOWN_SEGUNDOS = 30
+TAMANHO_MAXIMO_MB = 200
+COOLDOWN_SEGUNDOS = 10
 LIMITE_POR_SESSAO = 15
 
 if "autenticado" not in st.session_state:
@@ -69,9 +69,12 @@ def logout():
     st.session_state["flash_html_pronto"] = None
     st.rerun()
 
-def verificar_seguranca(arquivo):
-    if arquivo.size > TAMANHO_MAXIMO_MB * 1024 * 1024:
-        st.error(f"❌ Segurança: O ficheiro excede o limite de {TAMANHO_MAXIMO_MB}MB.")
+# NOVA LÓGICA DE SEGURANÇA: SOMA O TAMANHO DE VÁRIOS FICHEIROS
+def verificar_seguranca(arquivos):
+    tamanho_total = sum([arq.size for arq in arquivos]) if isinstance(arquivos, list) else arquivos.size
+    
+    if tamanho_total > TAMANHO_MAXIMO_MB * 1024 * 1024:
+        st.error(f"❌ Segurança: O tamanho total dos ficheiros excede o limite de {TAMANHO_MAXIMO_MB}MB.")
         return False
         
     if st.session_state["geracoes_nesta_sessao"] >= LIMITE_POR_SESSAO:
@@ -427,29 +430,38 @@ else:
     
     aba_quiz, aba_flashcards = st.tabs(["📝 Gerar Quiz", "🃏 Gerar Flashcards"])
 
+    # ------------------ ABA QUIZ ------------------
     with aba_quiz:
         st.subheader("Configurações do Quiz")
         titulo_quiz = st.text_input("Título do Quiz", value="Desafio de Conhecimento", key="titulo_quiz")
         nome_prof_quiz = st.text_input("Nome do Professor(a)", placeholder="Ex: Maria João", key="prof_quiz")
         qnt_perguntas = st.number_input("Número de perguntas", min_value=1, max_value=30, value=5, key="qnt_quiz")
         
-        metodo_quiz = st.radio("Como quer enviar o material?", ["📁 Carregar Ficheiro", "📷 Tirar Foto na Hora"], horizontal=True, key="metodo_quiz")
+        metodo_quiz = st.radio("Como quer enviar o material?", ["📁 Carregar Ficheiros", "📷 Tirar Foto na Hora"], horizontal=True, key="metodo_quiz")
         
         arquivo_final_quiz = None
-        if metodo_quiz == "📁 Carregar Ficheiro":
-            arquivo_final_quiz = st.file_uploader("Envie o material", type=FORMATOS_PERMITIDOS, key="arq_quiz")
+        if metodo_quiz == "📁 Carregar Ficheiros":
+            # AQUI: accept_multiple_files=True permite enviar vários ficheiros de uma vez!
+            arquivo_final_quiz = st.file_uploader("Envie os ficheiros (pode selecionar vários)", type=FORMATOS_PERMITIDOS, accept_multiple_files=True, key="arq_quiz")
         else:
             arquivo_final_quiz = st.camera_input("Tire uma foto legível do caderno/quadro", key="cam_quiz")
         
         if arquivo_final_quiz and st.button("✨ Gerar Jogo", use_container_width=True, key="btn_quiz"):
             if verificar_seguranca(arquivo_final_quiz):
-                with st.spinner("A analisar o documento e a criar o Quiz de forma segura..."):
+                with st.spinner("A analisar os documentos e a criar o Quiz de forma segura..."):
                     try:
-                        texto = processar_arquivo(arquivo_final_quiz)
-                        if not texto.strip():
-                            st.warning("Não foi possível extrair texto legível desta imagem/ficheiro.")
+                        # LÓGICA DE SOMA DE TEXTOS PARA VÁRIOS FICHEIROS
+                        texto_completo = ""
+                        if isinstance(arquivo_final_quiz, list): # Se forem vários ficheiros carregados
+                            for arq in arquivo_final_quiz:
+                                texto_completo += processar_arquivo(arq) + "\n\n"
+                        else: # Se for foto tirada na hora (ficheiro único)
+                            texto_completo = processar_arquivo(arquivo_final_quiz)
+                            
+                        if not texto_completo.strip():
+                            st.warning("Não foi possível extrair texto legível destes ficheiros.")
                         else:
-                            dados = gerar_quiz_da_ia(texto, qnt_perguntas)
+                            dados = gerar_quiz_da_ia(texto_completo, qnt_perguntas)
                             html_gerado = obter_html_jogo(dados, titulo_quiz, nome_prof_quiz)
                             st.session_state["ultimo_uso"] = time.time()
                             st.session_state["geracoes_nesta_sessao"] += 1
@@ -471,17 +483,19 @@ else:
             )
             st.info("💡 **Dica de Partilha:** Após descarregar no seu telemóvel, abra a notificação do ficheiro baixado e use o botão nativo de 'Partilhar' do aparelho para enviar diretamente pelo WhatsApp ou Email.")
 
+    # ------------------ ABA FLASHCARDS ------------------
     with aba_flashcards:
         st.subheader("Configurações dos Flashcards")
         titulo_deck = st.text_input("Título do Baralho", value="Revisão Rápida", key="titulo_flash")
         nome_prof_flash = st.text_input("Nome do Professor(a)", placeholder="Ex: Maria João", key="prof_flash")
         qnt_cartoes = st.number_input("Número de cartões", min_value=1, max_value=30, value=10, key="qnt_flash")
         
-        metodo_flash = st.radio("Como quer enviar o material?", ["📁 Carregar Ficheiro", "📷 Tirar Foto na Hora"], horizontal=True, key="metodo_flash")
+        metodo_flash = st.radio("Como quer enviar o material?", ["📁 Carregar Ficheiros", "📷 Tirar Foto na Hora"], horizontal=True, key="metodo_flash")
         
         arquivo_final_flash = None
-        if metodo_flash == "📁 Carregar Ficheiro":
-            arquivo_final_flash = st.file_uploader("Envie o material", type=FORMATOS_PERMITIDOS, key="arq_flash")
+        if metodo_flash == "📁 Carregar Ficheiros":
+            # AQUI: accept_multiple_files=True permite enviar vários ficheiros de uma vez!
+            arquivo_final_flash = st.file_uploader("Envie os ficheiros (pode selecionar vários)", type=FORMATOS_PERMITIDOS, accept_multiple_files=True, key="arq_flash")
         else:
             arquivo_final_flash = st.camera_input("Tire uma foto legível do caderno/quadro", key="cam_flash")
         
@@ -489,11 +503,18 @@ else:
             if verificar_seguranca(arquivo_final_flash):
                 with st.spinner("A extrair os conceitos de forma segura..."):
                     try:
-                        texto = processar_arquivo(arquivo_final_flash)
-                        if not texto.strip():
-                            st.warning("Não foi possível extrair texto legível desta imagem/ficheiro.")
+                        # LÓGICA DE SOMA DE TEXTOS PARA VÁRIOS FICHEIROS
+                        texto_completo = ""
+                        if isinstance(arquivo_final_flash, list):
+                            for arq in arquivo_final_flash:
+                                texto_completo += processar_arquivo(arq) + "\n\n"
                         else:
-                            dados = gerar_flashcards_da_ia(texto, qnt_cartoes)
+                            texto_completo = processar_arquivo(arquivo_final_flash)
+                            
+                        if not texto_completo.strip():
+                            st.warning("Não foi possível extrair texto legível destes ficheiros.")
+                        else:
+                            dados = gerar_flashcards_da_ia(texto_completo, qnt_cartoes)
                             html_gerado = obter_html_flashcards(dados, titulo_deck, nome_prof_flash)
                             st.session_state["ultimo_uso"] = time.time()
                             st.session_state["geracoes_nesta_sessao"] += 1
