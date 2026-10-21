@@ -50,8 +50,8 @@ for i in range(1, 51):
     u = f"beta{i}"
     USUARIOS_AUTORIZADOS[u] = u
 
-TAMANHO_MAXIMO_MB = 100
-COOLDOWN_SEGUNDOS = 10
+TAMANHO_MAXIMO_MB = 200
+COOLDOWN_SEGUNDOS = 60
 LIMITE_POR_SESSAO = 50
 
 # Inicialização das variáveis de sessão
