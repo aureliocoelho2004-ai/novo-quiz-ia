@@ -435,13 +435,13 @@ else:
         st.subheader("Configurações do Quiz")
         titulo_quiz = st.text_input("Título do Quiz", value="Desafio de Conhecimento", key="titulo_quiz")
         nome_prof_quiz = st.text_input("Nome do Professor(a)", placeholder="Ex: Maria João", key="prof_quiz")
-        qnt_perguntas = st.number_input("Número de perguntas", min_value=1, max_value=30, value=5, key="qnt_quiz")
+        # AQUI ESTÁ A ALTERAÇÃO: min_value=5, max_value=50
+        qnt_perguntas = st.number_input("Número de perguntas", min_value=5, max_value=50, value=5, key="qnt_quiz")
         
         metodo_quiz = st.radio("Como quer enviar o material?", ["📁 Carregar Ficheiros", "📷 Tirar Foto na Hora"], horizontal=True, key="metodo_quiz")
         
         arquivo_final_quiz = None
         if metodo_quiz == "📁 Carregar Ficheiros":
-            # AQUI: accept_multiple_files=True permite enviar vários ficheiros de uma vez!
             arquivo_final_quiz = st.file_uploader("Envie os ficheiros (pode selecionar vários)", type=FORMATOS_PERMITIDOS, accept_multiple_files=True, key="arq_quiz")
         else:
             arquivo_final_quiz = st.camera_input("Tire uma foto legível do caderno/quadro", key="cam_quiz")
@@ -450,12 +450,11 @@ else:
             if verificar_seguranca(arquivo_final_quiz):
                 with st.spinner("A analisar os documentos e a criar o Quiz de forma segura..."):
                     try:
-                        # LÓGICA DE SOMA DE TEXTOS PARA VÁRIOS FICHEIROS
                         texto_completo = ""
-                        if isinstance(arquivo_final_quiz, list): # Se forem vários ficheiros carregados
+                        if isinstance(arquivo_final_quiz, list):
                             for arq in arquivo_final_quiz:
                                 texto_completo += processar_arquivo(arq) + "\n\n"
-                        else: # Se for foto tirada na hora (ficheiro único)
+                        else:
                             texto_completo = processar_arquivo(arquivo_final_quiz)
                             
                         if not texto_completo.strip():
@@ -474,10 +473,14 @@ else:
             st.markdown("---")
             st.subheader("📥 Guardar e Partilhar")
             
+            # AQUI ESTÁ A ALTERAÇÃO DO NOME DO FICHEIRO PARA O NOME DO TÍTULO DO QUIZ
+            nome_seguro_quiz = re.sub(r'[^\w\s-]', '', titulo_quiz).strip().replace(' ', '_')
+            nome_seguro_quiz = nome_seguro_quiz if nome_seguro_quiz else "quizify_jogo"
+            
             st.download_button(
                 label="📥 Descarregar Quiz HTML", 
                 data=st.session_state["quiz_html_pronto"], 
-                file_name="quizify_jogo.html", 
+                file_name=f"{nome_seguro_quiz}.html", 
                 mime="text/html", 
                 use_container_width=True
             )
@@ -488,13 +491,13 @@ else:
         st.subheader("Configurações dos Flashcards")
         titulo_deck = st.text_input("Título do Baralho", value="Revisão Rápida", key="titulo_flash")
         nome_prof_flash = st.text_input("Nome do Professor(a)", placeholder="Ex: Maria João", key="prof_flash")
-        qnt_cartoes = st.number_input("Número de cartões", min_value=1, max_value=30, value=10, key="qnt_flash")
+        # AQUI ESTÁ A ALTERAÇÃO: min_value=5, max_value=50
+        qnt_cartoes = st.number_input("Número de cartões", min_value=5, max_value=50, value=10, key="qnt_flash")
         
         metodo_flash = st.radio("Como quer enviar o material?", ["📁 Carregar Ficheiros", "📷 Tirar Foto na Hora"], horizontal=True, key="metodo_flash")
         
         arquivo_final_flash = None
         if metodo_flash == "📁 Carregar Ficheiros":
-            # AQUI: accept_multiple_files=True permite enviar vários ficheiros de uma vez!
             arquivo_final_flash = st.file_uploader("Envie os ficheiros (pode selecionar vários)", type=FORMATOS_PERMITIDOS, accept_multiple_files=True, key="arq_flash")
         else:
             arquivo_final_flash = st.camera_input("Tire uma foto legível do caderno/quadro", key="cam_flash")
@@ -503,7 +506,6 @@ else:
             if verificar_seguranca(arquivo_final_flash):
                 with st.spinner("A extrair os conceitos de forma segura..."):
                     try:
-                        # LÓGICA DE SOMA DE TEXTOS PARA VÁRIOS FICHEIROS
                         texto_completo = ""
                         if isinstance(arquivo_final_flash, list):
                             for arq in arquivo_final_flash:
@@ -527,10 +529,14 @@ else:
             st.markdown("---")
             st.subheader("📥 Guardar e Partilhar")
             
+            # AQUI ESTÁ A ALTERAÇÃO DO NOME DO FICHEIRO PARA O NOME DO TÍTULO DOS FLASHCARDS
+            nome_seguro_flash = re.sub(r'[^\w\s-]', '', titulo_deck).strip().replace(' ', '_')
+            nome_seguro_flash = nome_seguro_flash if nome_seguro_flash else "quizify_flashcards"
+            
             st.download_button(
                 label="📥 Descarregar Flashcards HTML", 
                 data=st.session_state["flash_html_pronto"], 
-                file_name="quizify_flashcards.html", 
+                file_name=f"{nome_seguro_flash}.html", 
                 mime="text/html", 
                 use_container_width=True
             )
