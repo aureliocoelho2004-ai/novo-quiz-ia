@@ -18,6 +18,22 @@ genai.configure(api_key=GEMINI_API_KEY)
 modelo = genai.GenerativeModel("gemini-3.8-flash") 
 
 # ==========================================
+# CONFIGURAÇÃO DA PÁGINA E VISUAL
+# ==========================================
+st.set_page_config(page_title="Quizify", layout="centered")
+
+# --- OCULTAR MENU STREAMLIT E GITHUB ---
+esconder_menu = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    </style>
+    """
+st.markdown(esconder_menu, unsafe_allow_html=True)
+# ---------------------------------------
+
+# ==========================================
 # CONTROLO DE ACESSO E SEGURANÇA (RATE LIMIT)
 # ==========================================
 USUARIOS_AUTORIZADOS = {
@@ -69,7 +85,7 @@ def logout():
     st.session_state["flash_html_pronto"] = None
     st.rerun()
 
-# NOVA LÓGICA DE SEGURANÇA: SOMA O TAMANHO DE VÁRIOS FICHEIROS
+# LÓGICA DE SEGURANÇA: SOMA O TAMANHO DE VÁRIOS FICHEIROS
 def verificar_seguranca(arquivos):
     tamanho_total = sum([arq.size for arq in arquivos]) if isinstance(arquivos, list) else arquivos.size
     
@@ -412,7 +428,6 @@ def obter_html_flashcards(json_cartoes, titulo_deck, nome_professor):
 # ==========================================
 # CONTROLO DE FLUXO DA APLICAÇÃO
 # ==========================================
-st.set_page_config(page_title="Quizify", layout="centered")
 
 FORMATOS_PERMITIDOS = ["pdf", "docx", "pptx", "png", "jpg", "jpeg"]
 
@@ -435,7 +450,6 @@ else:
         st.subheader("Configurações do Quiz")
         titulo_quiz = st.text_input("Título do Quiz", value="Desafio de Conhecimento", key="titulo_quiz")
         nome_prof_quiz = st.text_input("Nome do Professor(a)", placeholder="Ex: Maria João", key="prof_quiz")
-        # AQUI ESTÁ A ALTERAÇÃO: min_value=5, max_value=50
         qnt_perguntas = st.number_input("Número de perguntas", min_value=5, max_value=50, value=5, key="qnt_quiz")
         
         metodo_quiz = st.radio("Como quer enviar o material?", ["📁 Carregar Ficheiros", "📷 Tirar Foto na Hora"], horizontal=True, key="metodo_quiz")
@@ -473,7 +487,6 @@ else:
             st.markdown("---")
             st.subheader("📥 Guardar e Partilhar")
             
-            # AQUI ESTÁ A ALTERAÇÃO DO NOME DO FICHEIRO PARA O NOME DO TÍTULO DO QUIZ
             nome_seguro_quiz = re.sub(r'[^\w\s-]', '', titulo_quiz).strip().replace(' ', '_')
             nome_seguro_quiz = nome_seguro_quiz if nome_seguro_quiz else "quizify_jogo"
             
@@ -491,7 +504,6 @@ else:
         st.subheader("Configurações dos Flashcards")
         titulo_deck = st.text_input("Título do Baralho", value="Revisão Rápida", key="titulo_flash")
         nome_prof_flash = st.text_input("Nome do Professor(a)", placeholder="Ex: Maria João", key="prof_flash")
-        # AQUI ESTÁ A ALTERAÇÃO: min_value=5, max_value=50
         qnt_cartoes = st.number_input("Número de cartões", min_value=5, max_value=50, value=10, key="qnt_flash")
         
         metodo_flash = st.radio("Como quer enviar o material?", ["📁 Carregar Ficheiros", "📷 Tirar Foto na Hora"], horizontal=True, key="metodo_flash")
@@ -529,7 +541,6 @@ else:
             st.markdown("---")
             st.subheader("📥 Guardar e Partilhar")
             
-            # AQUI ESTÁ A ALTERAÇÃO DO NOME DO FICHEIRO PARA O NOME DO TÍTULO DOS FLASHCARDS
             nome_seguro_flash = re.sub(r'[^\w\s-]', '', titulo_deck).strip().replace(' ', '_')
             nome_seguro_flash = nome_seguro_flash if nome_seguro_flash else "quizify_flashcards"
             
