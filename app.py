@@ -460,7 +460,7 @@ def obter_html_flashcards(json_cartoes, titulo_deck, nome_professor):
         
         <div class="text-center text-sm text-slate-400 mb-4">Cartão <span id="num-atual">1</span> de <span id="total-cartoes"></span></div>
         
-        <div class="perspectiva h-64 w-full mb-6" onclick="virarCarta()">
+        <div class="perspectiva h-96 w-full mb-6" onclick="virarCarta()">
             <div id="carta" class="carta-interior shadow-lg">
                 <div class="frente"><h2 id="texto-frente" class="text-2xl font-bold text-slate-100">Frente</h2></div>
                 <div class="verso"><p id="texto-verso" class="text-lg font-semibold text-white">Verso</p></div>
