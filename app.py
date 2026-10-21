@@ -17,7 +17,7 @@ import html
 try:
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=GEMINI_API_KEY)
-    modelo = genai.GenerativeModel("gemini-1.5-flash")
+    modelo = genai.GenerativeModel("gemini-3.8-flash")
 except Exception as e:
     st.error("Erro de configuração: Gemini API Key não encontrada.")
 
@@ -50,7 +50,7 @@ for i in range(1, 51):
     u = f"beta{i}"
     USUARIOS_AUTORIZADOS[u] = u
 
-TAMANHO_MAXIMO_MB = 200
+TAMANHO_MAXIMO_MB = 100
 COOLDOWN_SEGUNDOS = 10
 LIMITE_POR_SESSAO = 50
 
