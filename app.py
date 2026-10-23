@@ -17,8 +17,8 @@ import html
 try:
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=GEMINI_API_KEY)
-    # Vamos manter o 1.5-flash aqui provisoriamente até vermos a lista
-    modelo = genai.GenerativeModel("gemini-2.5-flash")
+    # Atualizado para o modelo mais recente exigido pela Google
+    modelo = genai.GenerativeModel("gemini-3.8-flash")
 except Exception as e:
     st.error("Erro de configuração: Gemini API Key não encontrada nos Secrets.")
     st.stop()
@@ -224,7 +224,6 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
         <div id="tela-pergunta">
             <h2 id="texto-pergunta" class="text-xl font-bold mb-4 text-center">A carregar...</h2>
             
-            <!-- A FONTE DA DICA JÁ ESTÁ AUMENTADA AQUI -->
             <p id="dica-interacao" class="text-center text-red-500 text-2xl font-extrabold mb-4 animate-pulse italic">👉 Toque numa opção para responder!</p>
             
             <div id="opcoes-container" class="flex flex-col gap-3"></div>
@@ -314,17 +313,6 @@ else:
             logout()
 
     st.title("🎲 Quizify")
-    
-    # === ESTA CAIXA VAI MOSTRAR OS MODELOS CORRETOS ===
-    st.info("🔍 **Lista de Modelos Disponíveis (Copie um destes nomes se houver erro):**")
-    try:
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                st.write(f"- `{m.name}`")
-    except Exception as e:
-        st.error(f"Erro ao listar: {e}")
-    # ====================================================
-
     st.write("Transforme o seu material de estudo em jogos interativos!")
 
     aba_quiz, aba_flashcards = st.tabs(["📝 Gerar Quiz", "🃏 (Em breve)"])
@@ -355,7 +343,4 @@ else:
 
         if st.session_state.get("quiz_html_pronto"):
             st.markdown("---")
-            
-            # === RENDERIZADOR PARA O iOS ===
             components.html(st.session_state["quiz_html_pronto"], height=750, scrolling=True)
-            # ===============================
