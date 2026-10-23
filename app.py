@@ -27,7 +27,13 @@ except Exception as e:
 # CONFIGURAÇÃO DA PÁGINA E VISUAL
 # ==========================================
 st.set_page_config(page_title="Quizify", layout="centered")
-
+st.write("🔍 **Modelos disponíveis para esta chave:**")
+    try:
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                st.write(m.name)
+    except Exception as erro_lista:
+        st.write("Erro ao listar modelos:", erro_lista)
 # Ocultar o menu padrão do Streamlit e o rodapé
 esconder_menu = """
     <style>
