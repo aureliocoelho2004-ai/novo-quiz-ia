@@ -28,12 +28,19 @@ except Exception as e:
 # ==========================================
 st.set_page_config(page_title="Quizify", layout="centered")
 st.write("🔍 **Modelos disponíveis para esta chave:**")
+   st.title("🎲 Quizify")
+    
+    # --- BLOCO DE TESTE DE MODELOS ---
+    st.write("🔍 **Modelos disponíveis para esta chave:**")
     try:
         for m in genai.list_models():
             if 'generateContent' in m.supported_generation_methods:
                 st.write(m.name)
     except Exception as erro_lista:
         st.write("Erro ao listar modelos:", erro_lista)
+    # ---------------------------------
+    
+    st.write("Transforme o seu material de estudo (PDF, Word, PowerPoint ou Imagens) em jogos interativos!")
 # Ocultar o menu padrão do Streamlit e o rodapé
 esconder_menu = """
     <style>
