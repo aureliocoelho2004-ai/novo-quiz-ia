@@ -18,7 +18,7 @@ import html
 try:
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=GEMINI_API_KEY)
-    modelo = genai.GenerativeModel("gemini-1.5-flash-latest")
+    modelo = genai.GenerativeModel("gemini-pro")
 except Exception as e:
     st.error("Erro de configuração: Gemini API Key não encontrada nos Secrets.")
     st.stop()# Interrompe a execução se não houver chave
