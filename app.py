@@ -343,4 +343,182 @@ def obter_html_flashcards(json_cartoes, titulo_deck, nome_professor):
         body { font-family: sans-serif; }
         .perspectiva { perspective: 1000px; }
         .carta-interior { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.6s; transform-style: preserve-3d; cursor: pointer; }
-        .virada { transform: rotate
+        .virada { transform: rotateY(180deg); }
+        .frente, .verso { position: absolute; width: 100%; height: 100%; backface-visibility: hidden; display: flex; align-items: center; justify-content: center; padding: 1.5rem; border-radius: 1rem; }
+        .frente { background-color: #1e293b; border: 2px solid #475569; }
+        .verso { background-color: #4f46e5; transform: rotateY(180deg); }
+    </style>
+</head>
+<body class="bg-slate-900 text-white flex items-center justify-center min-h-screen p-4">
+    <div class="w-full max-w-md bg-slate-800 rounded-2xl p-6 border border-slate-700">
+        <h1 class="text-2xl font-extrabold text-center text-indigo-400 mb-1">[[TITULO]]</h1>
+        <p class="text-center text-slate-400 text-sm mb-2">Prof. [[PROFESSOR]]</p>
+        
+        <p class="text-center text-indigo-300 text-xl font-bold mb-6 pb-4 border-b border-slate-700 italic">👆 Clique no card para ver a resposta!</p>
+        
+        <div class="text-center text-sm text-slate-400 mb-4">Cartão <span id="num-atual">1</span> de <span id="total-cartoes"></span></div>
+        
+        <div class="perspectiva h-64 w-full mb-6" onclick="virarCarta()">
+            <div id="carta" class="carta-interior shadow-lg">
+                <div class="frente"><h2 id="texto-frente" class="text-2xl font-bold text-slate-100">Frente</h2></div>
+                <div class="verso"><p id="texto-verso" class="text-lg font-semibold text-white">Verso</p></div>
+            </div>
+        </div>
+        
+        <div class="flex justify-between gap-4">
+            <button onclick="cartaoAnterior()" class="w-full bg-slate-700 py-3 rounded-xl font-bold">Anterior</button>
+            <button onclick="proximoCartao()" class="w-full bg-indigo-600 py-3 rounded-xl font-bold">Próximo</button>
+        </div>
+    </div>
+    <script>
+        const cartoes = [[JSON_CARTOES]];
+        let indice = 0;
+        document.getElementById('total-cartoes').innerText = cartoes.length;
+        
+        function carregarCartao() {
+            document.getElementById('carta').classList.remove('virada');
+            setTimeout(() => {
+                document.getElementById('texto-frente').innerText = cartoes[indice].frente;
+                document.getElementById('texto-verso').innerText = cartoes[indice].verso;
+                document.getElementById('num-atual').innerText = indice + 1;
+            }, 200);
+        }
+        
+        function virarCarta() { document.getElementById('carta').classList.toggle('virada'); }
+        
+        function proximoCartao() { 
+            if (indice < cartoes.length - 1) { 
+                indice++; carregarCartao(); 
+            } else { 
+                indice = 0; carregarCartao(); 
+            } 
+        }
+        
+        function cartaoAnterior() { 
+            if (indice > 0) { 
+                indice--; carregarCartao(); 
+            } 
+        }
+        
+        carregarCartao();
+    </script>
+</body>
+</html>"""
+    return html_export.replace("[[TITULO]]", titulo_seguro).replace("[[PROFESSOR]]", nome_prof_seguro).replace("[[JSON_CARTOES]]", json_str)
+
+# ==========================================
+# CONTROLO DE FLUXO DA APLICAÇÃO
+# ==========================================
+FORMATOS_PERMITIDOS = ["pdf", "docx", "pptx", "png", "jpg", "jpeg"]
+
+if not st.session_state["autenticado"]:
+    tela_login()
+else:
+    with st.sidebar:
+        st.write(f"Conectado como: **{st.session_state['usuario_atual']}**")
+        st.write(f"📊 Consumo: {st.session_state['geracoes_nesta_sessao']}/{LIMITE_POR_SESSAO}")
+        if st.button("Terminar Sessão", use_container_width=True):
+            logout()
+
+    st.title("🎲 Quizify")
+    st.write("Transforme o seu material de estudo (PDF, Word, PowerPoint ou Imagens) em jogos interativos!")
+
+    aba_quiz, aba_flashcards = st.tabs(["📝 Gerar Quiz", "🃏 Gerar Flashcards"])
+
+    # ------------------ ABA QUIZ ------------------
+    with aba_quiz:
+        st.subheader("Configurações do Quiz")
+        titulo_quiz = st.text_input("Título do Quiz", value="Desafio de Conhecimento", key="titulo_quiz")
+        nome_prof_quiz = st.text_input("Nome do Professor(a)", placeholder="Ex: Maria João", key="prof_quiz")
+        qnt_perguntas = st.number_input("Número de perguntas", min_value=5, max_value=50, value=5, key="qnt_quiz")
+
+        arquivo_final_quiz = st.file_uploader("Envie os ficheiros (PDF, Word, PowerPoint ou Imagens)", type=FORMATOS_PERMITIDOS, accept_multiple_files=True, key="arq_quiz")
+
+        if arquivo_final_quiz and st.button("✨ Gerar Jogo", use_container_width=True, key="btn_quiz"):
+            if verificar_seguranca(arquivo_final_quiz):
+                with st.spinner("A analisar os documentos e a criar o Quiz de forma segura..."):
+                    try:
+                        texto_completo = ""
+                        for arq in arquivo_final_quiz:
+                            texto_completo += processar_arquivo(arq) + "\n\n"
+                            
+                        if not texto_completo.strip():
+                            st.warning("Não foi possível extrair texto legível destes ficheiros.")
+                        else:
+                            dados = gerar_quiz_da_ia(texto_completo, qnt_perguntas)
+                            html_gerado = obter_html_jogo(dados, titulo_quiz, nome_prof_quiz)
+                            
+                            st.session_state["ultimo_uso"] = time.time()
+                            st.session_state["geracoes_nesta_sessao"] += 1
+                            st.session_state["quiz_html_pronto"] = html_gerado
+                            st.success("✅ Quiz criado com sucesso!")
+                    except Exception as e:
+                        st.error(f"Erro no processamento: {e}")
+
+        if st.session_state.get("quiz_html_pronto"):
+            st.markdown("---")
+            st.subheader("🎮 Jogue na tela ou descarregue abaixo:")
+            
+            # Abre na tela (iOS Funciona!)
+            components.html(st.session_state["quiz_html_pronto"], height=750, scrolling=True)
+
+            # Botão de download restaurado
+            nome_seguro_quiz = re.sub(r'[^\w\s-]', '', titulo_quiz).strip().replace(' ', '_')
+            nome_seguro_quiz = nome_seguro_quiz if nome_seguro_quiz else "quizify_jogo"
+
+            st.download_button(
+                label="📥 Descarregar Ficheiro do Jogo",
+                data=st.session_state["quiz_html_pronto"],
+                file_name=f"{nome_seguro_quiz}.html",
+                mime="text/html",
+                use_container_width=True
+            )
+
+    # ------------------ ABA FLASHCARDS ------------------
+    with aba_flashcards:
+        st.subheader("Configurações dos Flashcards")
+        titulo_deck = st.text_input("Título do Baralho", value="Revisão Rápida", key="titulo_flash")
+        nome_prof_flash = st.text_input("Nome do Professor(a)", placeholder="Ex: Maria João", key="prof_flash")
+        qnt_cartoes = st.number_input("Número de cartões", min_value=5, max_value=50, value=10, key="qnt_flash")
+
+        arquivo_final_flash = st.file_uploader("Envie os ficheiros (PDF, Word, PowerPoint ou Imagens)", type=FORMATOS_PERMITIDOS, accept_multiple_files=True, key="arq_flash")
+
+        if arquivo_final_flash and st.button("✨ Gerar Flashcards", use_container_width=True, key="btn_flash"):
+            if verificar_seguranca(arquivo_final_flash):
+                with st.spinner("A extrair os conceitos de forma segura..."):
+                    try:
+                        texto_completo = ""
+                        for arq in arquivo_final_flash:
+                            texto_completo += processar_arquivo(arq) + "\n\n"
+                            
+                        if not texto_completo.strip():
+                            st.warning("Não foi possível extrair texto legível destes ficheiros.")
+                        else:
+                            dados = gerar_flashcards_da_ia(texto_completo, qnt_cartoes)
+                            html_gerado = obter_html_flashcards(dados, titulo_deck, nome_prof_flash)
+                            
+                            st.session_state["ultimo_uso"] = time.time()
+                            st.session_state["geracoes_nesta_sessao"] += 1
+                            st.session_state["flash_html_pronto"] = html_gerado
+                            st.success("✅ Flashcards criados com sucesso!")
+                    except Exception as e:
+                        st.error(f"Erro no processamento: {e}")
+
+        if st.session_state.get("flash_html_pronto"):
+            st.markdown("---")
+            st.subheader("🃏 Estude na tela ou descarregue abaixo:")
+            
+            # Abre na tela
+            components.html(st.session_state["flash_html_pronto"], height=650, scrolling=True)
+
+            # Botão de download
+            nome_seguro_flash = re.sub(r'[^\w\s-]', '', titulo_deck).strip().replace(' ', '_')
+            nome_seguro_flash = nome_seguro_flash if nome_seguro_flash else "quizify_flashcards"
+
+            st.download_button(
+                label="📥 Descarregar Ficheiro dos Flashcards",
+                data=st.session_state["flash_html_pronto"],
+                file_name=f"{nome_seguro_flash}.html",
+                mime="text/html",
+                use_container_width=True
+            )
