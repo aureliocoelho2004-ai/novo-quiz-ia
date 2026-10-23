@@ -18,7 +18,7 @@ try:
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=GEMINI_API_KEY)
     # Vamos manter o 1.5-flash aqui provisoriamente até vermos a lista
-    modelo = genai.GenerativeModel("gemini-1.5-flash")
+    modelo = genai.GenerativeModel("gemini-2.5-flash")
 except Exception as e:
     st.error("Erro de configuração: Gemini API Key não encontrada nos Secrets.")
     st.stop()
