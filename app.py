@@ -17,7 +17,8 @@ import html
 try:
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=GEMINI_API_KEY)
-    modelo = genai.GenerativeModel("gemini-1.5-flash") # Mantemos este provisoriamente
+    # Vamos manter o 1.5-flash aqui provisoriamente até vermos a lista
+    modelo = genai.GenerativeModel("gemini-1.5-flash")
 except Exception as e:
     st.error("Erro de configuração: Gemini API Key não encontrada nos Secrets.")
     st.stop()
@@ -222,7 +223,10 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
         
         <div id="tela-pergunta">
             <h2 id="texto-pergunta" class="text-xl font-bold mb-4 text-center">A carregar...</h2>
+            
+            <!-- A FONTE DA DICA JÁ ESTÁ AUMENTADA AQUI -->
             <p id="dica-interacao" class="text-center text-red-500 text-2xl font-extrabold mb-4 animate-pulse italic">👉 Toque numa opção para responder!</p>
+            
             <div id="opcoes-container" class="flex flex-col gap-3"></div>
             
             <div id="tela-feedback" class="hidden mt-6 p-4 rounded-xl text-center">
@@ -306,4 +310,52 @@ if not st.session_state["autenticado"]:
 else:
     with st.sidebar:
         st.write(f"Conectado como: **{st.session_state['usuario_atual']}**")
-        if
+        if st.button("Terminar Sessão", use_container_width=True):
+            logout()
+
+    st.title("🎲 Quizify")
+    
+    # === ESTA CAIXA VAI MOSTRAR OS MODELOS CORRETOS ===
+    st.info("🔍 **Lista de Modelos Disponíveis (Copie um destes nomes se houver erro):**")
+    try:
+        for m in genai.list_models():
+            if 'generateContent' in m.supported_generation_methods:
+                st.write(f"- `{m.name}`")
+    except Exception as e:
+        st.error(f"Erro ao listar: {e}")
+    # ====================================================
+
+    st.write("Transforme o seu material de estudo em jogos interativos!")
+
+    aba_quiz, aba_flashcards = st.tabs(["📝 Gerar Quiz", "🃏 (Em breve)"])
+
+    with aba_quiz:
+        st.subheader("Configurações do Quiz")
+        titulo_quiz = st.text_input("Título do Quiz", value="Desafio")
+        nome_prof_quiz = st.text_input("Nome do Professor(a)", placeholder="Ex: Maria")
+        qnt_perguntas = st.number_input("Número de perguntas", min_value=1, max_value=50, value=2)
+
+        arquivo_final_quiz = st.file_uploader("Envie o ficheiro", type=FORMATOS_PERMITIDOS, accept_multiple_files=True)
+
+        if arquivo_final_quiz and st.button("✨ Gerar Jogo", use_container_width=True):
+            if verificar_seguranca(arquivo_final_quiz):
+                with st.spinner("A analisar..."):
+                    try:
+                        texto_completo = ""
+                        for arq in arquivo_final_quiz:
+                            texto_completo += processar_arquivo(arq) + "\n\n"
+                            
+                        dados = gerar_quiz_da_ia(texto_completo, qnt_perguntas)
+                        html_gerado = obter_html_jogo(dados, titulo_quiz, nome_prof_quiz)
+                        
+                        st.session_state["quiz_html_pronto"] = html_gerado
+                        st.success("✅ Quiz criado!")
+                    except Exception as e:
+                        st.error(f"Erro: {e}")
+
+        if st.session_state.get("quiz_html_pronto"):
+            st.markdown("---")
+            
+            # === RENDERIZADOR PARA O iOS ===
+            components.html(st.session_state["quiz_html_pronto"], height=750, scrolling=True)
+            # ===============================
