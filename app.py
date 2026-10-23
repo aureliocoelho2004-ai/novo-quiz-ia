@@ -17,7 +17,7 @@ import html
 try:
     GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
     genai.configure(api_key=GEMINI_API_KEY)
-    # Atualizado para o modelo mais recente exigido pela Google
+    # Modelo mais recente exigido pela Google
     modelo = genai.GenerativeModel("gemini-3.8-flash")
 except Exception as e:
     st.error("Erro de configuração: Gemini API Key não encontrada nos Secrets.")
@@ -46,6 +46,7 @@ USUARIOS_AUTORIZADOS = {
     "professor": "aula123"
 }
 
+# Adicionar utilizadores beta
 for i in range(1, 51):
     u = f"beta{i}"
     USUARIOS_AUTORIZADOS[u] = u
@@ -217,6 +218,9 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
     </style>
 </head>
 <body class="bg-slate-900 text-white flex items-center justify-center min-h-screen p-4">
+    <audio id="som-palmas" preload="auto">
+        <source src="https://www.myinstants.com/media/sounds/applause.mp3" type="audio/mpeg">
+    </audio>
     <div class="w-full max-w-md bg-slate-800 rounded-2xl p-6 border border-slate-700">
         <h1 class="text-2xl font-extrabold text-center text-indigo-400 mb-1">[[TITULO]]</h1>
         <p class="text-center text-slate-400 text-sm mb-4 pb-4 border-b border-slate-700">Prof. [[PROFESSOR]]</p>
@@ -239,6 +243,7 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
             <div class="text-6xl mb-4">🏆</div>
             <h2 class="text-2xl font-bold mb-2">Fim de Jogo!</h2>
             <p>Acertou <span id="pontuacao-final" class="font-bold text-indigo-400 text-2xl"></span> do quiz.</p>
+            <button onclick="location.reload()" class="mt-6 w-full bg-indigo-600 py-3 rounded-xl">Jogar Novamente</button>
         </div>
     </div>
     <script>
@@ -289,6 +294,12 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
         }
         
         function mostrarResultado() {
+            const audioPalmas = document.getElementById('som-palmas');
+            audioPalmas.volume = 0.5;
+            const playPromise = audioPalmas.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => { console.log("O navegador impediu o som."); });
+            }
             document.getElementById('tela-pergunta').classList.add('hidden');
             document.getElementById('tela-resultado').classList.remove('hidden');
             document.getElementById('pontuacao-final').innerText = Math.round((acertos / perguntas.length) * 100) + '%';
@@ -299,48 +310,37 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
 </html>"""
     return html_export.replace("[[TITULO]]", titulo_seguro).replace("[[PROFESSOR]]", nome_prof_seguro).replace("[[JSON_PERGUNTAS]]", json_str)
 
-# ==========================================
-# CONTROLO DE FLUXO DA APLICAÇÃO
-# ==========================================
-FORMATOS_PERMITIDOS = ["pdf", "docx", "pptx", "png", "jpg", "jpeg"]
+def gerar_flashcards_da_ia(texto_base, num_cartoes):
+    prompt = f"""
+    Extraia os {num_cartoes} conceitos mais importantes do texto fornecido.
+    Retorne APENAS um array JSON válido:
+    [
+      {{
+        "frente": "Nome do Termo",
+        "verso": "Definição clara, direta e fácil de memorizar."
+      }}
+    ]
+    --- TEXTO BASE ---
+    {texto_base[:15000]}
+    """
+    resposta = modelo.generate_content(prompt)
+    texto_resposta = re.sub(r'```json\n?', '', resposta.text)
+    return json.loads(re.sub(r'```\n?', '', texto_resposta).strip())
 
-if not st.session_state["autenticado"]:
-    tela_login()
-else:
-    with st.sidebar:
-        st.write(f"Conectado como: **{st.session_state['usuario_atual']}**")
-        if st.button("Terminar Sessão", use_container_width=True):
-            logout()
+def obter_html_flashcards(json_cartoes, titulo_deck, nome_professor):
+    titulo_seguro = html.escape(titulo_deck)
+    nome_prof_seguro = html.escape(nome_professor)
+    json_str = json.dumps(json_cartoes)
 
-    st.title("🎲 Quizify")
-    st.write("Transforme o seu material de estudo em jogos interativos!")
-
-    aba_quiz, aba_flashcards = st.tabs(["📝 Gerar Quiz", "🃏 (Em breve)"])
-
-    with aba_quiz:
-        st.subheader("Configurações do Quiz")
-        titulo_quiz = st.text_input("Título do Quiz", value="Desafio")
-        nome_prof_quiz = st.text_input("Nome do Professor(a)", placeholder="Ex: Maria")
-        qnt_perguntas = st.number_input("Número de perguntas", min_value=1, max_value=50, value=2)
-
-        arquivo_final_quiz = st.file_uploader("Envie o ficheiro", type=FORMATOS_PERMITIDOS, accept_multiple_files=True)
-
-        if arquivo_final_quiz and st.button("✨ Gerar Jogo", use_container_width=True):
-            if verificar_seguranca(arquivo_final_quiz):
-                with st.spinner("A analisar..."):
-                    try:
-                        texto_completo = ""
-                        for arq in arquivo_final_quiz:
-                            texto_completo += processar_arquivo(arq) + "\n\n"
-                            
-                        dados = gerar_quiz_da_ia(texto_completo, qnt_perguntas)
-                        html_gerado = obter_html_jogo(dados, titulo_quiz, nome_prof_quiz)
-                        
-                        st.session_state["quiz_html_pronto"] = html_gerado
-                        st.success("✅ Quiz criado!")
-                    except Exception as e:
-                        st.error(f"Erro: {e}")
-
-        if st.session_state.get("quiz_html_pronto"):
-            st.markdown("---")
-            components.html(st.session_state["quiz_html_pronto"], height=750, scrolling=True)
+    html_export = """<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>[[TITULO]] - Flashcards</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { font-family: sans-serif; }
+        .perspectiva { perspective: 1000px; }
+        .carta-interior { position: relative; width: 100%; height: 100%; text-align: center; transition: transform 0.6s; transform-style: preserve-3d; cursor: pointer; }
+        .virada { transform: rotate
