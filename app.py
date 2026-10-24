@@ -246,7 +246,7 @@ else:
     q_itens = st.number_input("Quantidade (Perguntas/Cartões)", min_value=1, max_value=50, value=5)
     arquivos = st.file_uploader("Ficheiros", type=["pdf", "docx", "pptx", "png", "jpg", "jpeg"], accept_multiple_files=True)
 
-    if arquivos and st.button(f"✨ Gerar {tipo_conteudo}", use_container_width=True):
+   if arquivos and st.button(f"✨ Gerar {tipo_conteudo}", use_container_width=True):
         if verificar_seguranca(arquivos):
             with st.spinner(f"A gerar {tipo_conteudo.lower()} e a publicar na nuvem..."):
                 try:
@@ -260,7 +260,16 @@ else:
                         html_final = obter_html_flashcards(dados, t_titulo, n_prof)
                         prefixo = "flashcard"
                     
-if st.session_state.get("conteudo_pronto"):
+                    st.session_state["conteudo_pronto"] = html_final
+                    st.session_state["link_conteudo"] = fazer_upload_firebase(html_final, prefixo)
+                    st.session_state["ultimo_uso"] = time.time()
+                    st.session_state["geracoes_nesta_sessao"] += 1
+                    
+                    st.success(f"✅ {tipo_conteudo} publicado com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro ao gerar conteúdo: {e}")
+
+    if st.session_state.get("conteudo_pronto"):
         st.markdown("---")
         
         # Link da Nuvem para WhatsApp
