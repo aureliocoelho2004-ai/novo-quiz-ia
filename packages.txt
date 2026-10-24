@@ -73,9 +73,11 @@ if "link_conteudo" not in st.session_state: st.session_state["link_conteudo"] = 
 if "usuario_atual" not in st.session_state: st.session_state["usuario_atual"] = ""
 
 def verificar_seguranca(arquivos):
-    if sum([arq.size for arq in arquivos]) > 200 * 1024 * 1024: return False
-    if time.time() - st.session_state["ultimo_uso"] < 15: 
-        st.warning("⏳ Aguarde 15 segundos entre as gerações para não sobrecarregar o servidor.")
+    if len(arquivos) > 5:
+        st.error("❌ Por favor, envie no máximo 5 ficheiros de cada vez para não sobrecarregar o servidor.")
+        return False
+    if sum([arq.size for arq in arquivos]) > 50 * 1024 * 1024: 
+        st.error("❌ O tamanho total dos ficheiros excede 50MB.")
         return False
     return True
 
@@ -93,8 +95,8 @@ def processar_arquivo(a):
     elif n.endswith((".png", ".jpg", ".jpeg")):
         try:
             img = Image.open(a)
-            # Redimensionamento inteligente para poupar a memória do Render
-            img.thumbnail((1600, 1600))
+            # Reduz drasticamente o tamanho para poupar a RAM e acelerar o Gemini
+            img.thumbnail((1024, 1024))
             resposta_visao = modelo.generate_content([
                 "Transcreve todo o texto visível nesta imagem com precisão.", 
                 img
@@ -213,11 +215,14 @@ else:
     t_titulo = st.text_input("Título", value="Desafio de Conhecimento")
     n_prof = st.text_input("Professor(a)")
     q_itens = st.number_input("Quantidade", min_value=1, max_value=50, value=5)
+    
+    # Aviso útil para evitar travamentos do navegador
+    st.info("💡 **Dica de Performance:** Selecione no máximo **3 a 5 fotos** de cada vez para garantir uma leitura rápida e sem falhas.")
     arquivos = st.file_uploader("Ficheiros (PDF, Imagens, etc.)", type=["pdf", "docx", "pptx", "png", "jpg", "jpeg"], accept_multiple_files=True)
 
     if arquivos and st.button(f"Gerar {tipo_conteudo}", use_container_width=True):
         if verificar_seguranca(arquivos):
-            with st.spinner("A otimizar imagens e a gerar conteúdo com o Gemini..."):
+            with st.spinner("A processar imagens de forma inteligente e a gerar conteúdo..."):
                 try:
                     txt = "".join([processar_arquivo(a)+"\n" for a in arquivos])
                     dados = gerar_dados_ia(txt, q_itens, tipo_conteudo)
