@@ -74,10 +74,6 @@ if "link_conteudo" not in st.session_state: st.session_state["link_conteudo"] = 
 if "usuario_atual" not in st.session_state: st.session_state["usuario_atual"] = ""
 
 def verificar_seguranca(arquivos):
-    # Sem restrição de quantidade agora que o servidor aguenta e compacta tudo na origem
-    if sum([arq.size for arq in arquivos]) > 100 * 1024 * 1024: 
-        st.error("❌ O tamanho total dos ficheiros excede o limite permitido.")
-        return False
     return True
 
 def processar_arquivo(a):
@@ -93,17 +89,15 @@ def processar_arquivo(a):
         return "\n".join(t)
     elif n.endswith((".png", ".jpg", ".jpeg")):
         try:
-            # Compactação agressiva na origem para poupar RAM e acelerar o Gemini
             img = Image.open(a).convert("RGB")
-            img.thumbnail((800, 800))
-            
+            img.thumbnail((600, 600))
             buffer = io.BytesIO()
-            img.save(buffer, format="JPEG", quality=75)
+            img.save(buffer, format="JPEG", quality=60)
             buffer.seek(0)
             img_otimizada = Image.open(buffer)
 
             resposta_visao = modelo.generate_content([
-                "Transcreve todo o texto visível nesta imagem com precisão máxima.", 
+                "Transcreve todo o texto visível nesta imagem com precisão.", 
                 img_otimizada
             ])
             return resposta_visao.text
@@ -129,18 +123,18 @@ def construir_html_jogo(json_dados, titulo, professor):
         f"<h1 class='text-2xl font-extrabold text-center text-indigo-400 mb-1'>{html.escape(titulo)}</h1>",
         f"<p class='text-center text-slate-400 text-sm mb-4 pb-4 border-b border-slate-700'>Prof. {html.escape(professor)}</p>",
         "<div id='tela-p'><h2 id='t-perg' class='text-xl font-bold mb-4 text-center'>A carregar...</h2><div id='opc' class='flex flex-col gap-3'></div>",
-        "<div id='tela-f' class='hidden mt-6 p-4 rounded-xl text-center'><h3 id='f-tit' class='font-bold text-lg mb-2'></h3><p id='f-txt' class='text-sm'></p>",
-        "<button onclick='prox()' class='mt-4 w-full bg-indigo-600 py-3 rounded-xl font-bold'>Continuar</button></div></div>",
-        "<div id='tela-r' class='hidden text-center'><div class='text-6xl mb-4'>🏆</div><h2 class='text-2xl font-bold mb-2'>Fim!</h2>",
-        "<p>Acertou <span id='p-fin' class='font-bold text-indigo-400 text-2xl'></span></p><button onclick='location.reload()' class='mt-6 w-full bg-indigo-600 py-3 rounded-xl font-bold'>Novamente</button></div></div>",
+        "<div id='tela-f' class='hidden mt-6 p-4 rounded-xl text-center'><h3 id='f-tit' class='font-bold text-lg mb-2'></h3><p id='f-txt' class='text-sm mb-4'></p>",
+        "<button onclick='prox()' class='w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-xl font-bold text-white shadow-lg cursor-pointer'>➡️ Seguinte Pergunta</button></div></div>",
+        "<div id='tela-r' class='hidden text-center'><div class='text-6xl mb-4'>🏆</div><h2 class='text-2xl font-bold mb-2'>Fim de Jogo!</h2>",
+        "<p>Acertou <span id='p-fin' class='font-bold text-indigo-400 text-2xl'></span></p><button onclick='location.reload()' class='mt-6 w-full bg-indigo-600 py-3 rounded-xl font-bold'>Jogar Novamente</button></div></div>",
         "<script>",
         f"const pergs={json.dumps(json_dados)}; let ind=0; let acertos=0; let resp=false;",
         "function carregar(){resp=false;const p=pergs[ind];document.getElementById('t-perg').innerText=p.pergunta;document.getElementById('tela-f').classList.add('hidden');",
         "const c=document.getElementById('opc');c.innerHTML='';p.opcoes.forEach((o,i)=>{const b=document.createElement('button');b.innerText=o;",
-        "b.className='w-full bg-slate-700 border-2 border-slate-600 text-left py-3 px-5 rounded-xl text-white font-bold text-lg';b.onclick=()=>verificar(i,b);c.appendChild(b);});}",
+        "b.className='w-full bg-slate-700 border-2 border-slate-600 text-left py-3 px-5 rounded-xl text-white font-bold text-lg hover:bg-slate-600';b.onclick=()=>verificar(i,b);c.appendChild(b);});}",
         "function verificar(iS,b){if(resp)return;resp=true;const p=pergs[ind];const tf=document.getElementById('tela-f');tf.classList.remove('hidden');",
         "if(iS===p.resposta_correta){b.classList.add('correto');acertos++;tf.className='mt-6 p-4 rounded-xl text-center bg-green-900 block';document.getElementById('f-tit').innerText='✅ Correto!';document.getElementById('f-txt').innerText=p.explicacao;}",
-        "else{b.classList.add('errado');tf.className='mt-6 p-4 rounded-xl text-center bg-red-900 block';document.getElementById('f-tit').innerText='❌ Incorreto!';document.getElementById('f-txt').innerHTML=`A certa: <b>${p.opcoes[p.resposta_correta]}</b>.<br><br>${p.explicacao}`;}}",
+        "else{b.classList.add('errado');tf.className='mt-6 p-4 rounded-xl text-center bg-red-900 block';document.getElementById('f-tit').innerText='❌ Incorreto!';document.getElementById('f-txt').innerHTML=`A certa era: <b>${p.opcoes[p.resposta_correta]}</b>.<br><br>${p.explicacao}`;}}",
         "function prox(){ind++;if(ind<pergs.length)carregar();else mostrar();}",
         "function mostrar(){document.getElementById('tela-p').classList.add('hidden');document.getElementById('tela-r').classList.remove('hidden');document.getElementById('p-fin').innerText=Math.round((acertos/pergs.length)*100)+'%';}",
         "carregar();</script></body></html>"
