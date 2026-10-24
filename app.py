@@ -13,27 +13,38 @@ import re
 import time
 import html
 import uuid
+import os
 
 # ==========================================
 # CONFIGURAÇÃO DA IA E FIREBASE
 # ==========================================
 st.set_page_config(page_title="Quizify", layout="centered")
 
+def obter_segredo(chave):
+    # Tenta ler do Streamlit primeiro, se não encontrar, lê do Render (os.environ)
+    if chave in st.secrets:
+        return st.secrets[chave]
+    elif chave in os.environ:
+        return os.environ[chave]
+    else:
+        raise ValueError(f"Segredo não encontrado: {chave}")
+
 try:
     # 1. Configurar Gemini
-    GEMINI_API_KEY = st.secrets["GEMINI_API_KEY"]
+    GEMINI_API_KEY = obter_segredo("GEMINI_API_KEY")
     genai.configure(api_key=GEMINI_API_KEY)
     modelo = genai.GenerativeModel("gemini-3.8-flash")
     
     # 2. Configurar Firebase
     if not firebase_admin._apps:
-        cert_dict = json.loads(st.secrets["FIREBASE_KEY"])
+        chave_json = obter_segredo("FIREBASE_KEY")
+        cert_dict = json.loads(chave_json)
         cred = credentials.Certificate(cert_dict)
         firebase_admin.initialize_app(cred, {
-            'storageBucket': st.secrets["FIREBASE_BUCKET"]
+            'storageBucket': obter_segredo("FIREBASE_BUCKET")
         })
 except Exception as e:
-    st.error(f"Erro de configuração nos Secrets: {e}")
+    st.error(f"Erro de configuração: {e}")
     st.stop()
 
 # ==========================================
