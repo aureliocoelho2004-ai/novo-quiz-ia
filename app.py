@@ -303,4 +303,9 @@ else:
 
         # Botão de Download Clássico (MOVIDO PARA CIMA)
         nome_seg = re.sub(r'[^\w\s-]', '', t_titulo).strip().replace(' ', '_') or "conteudo"
-        st.download_button("📥 Descarregar Ficheiro HTML (Android/
+        st.download_button("📥 Descarregar Ficheiro HTML (Android/PC)", st.session_state["conteudo_pronto"], f"{nome_seg}.html", "text/html", use_container_width=True)
+
+        st.markdown("---")
+        
+        # Tela de Pré-visualização (O jogo aparece por último)
+        components.html(st.session_state["conteudo_pronto"], height=750, scrolling=True)
