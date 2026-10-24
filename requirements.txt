@@ -1,5 +1,5 @@
 streamlit
-google-generativeai>=0.5.0
+google-generativeai>=3.5.0
 PyPDF2
 python-docx
 python-pptx
