@@ -56,7 +56,7 @@ if "dicionario_usuarios" not in st.session_state:
 
 def fazer_upload_firebase(conteudo_html, prefixo="quizify"):
     try:
-        nome_arquivo = f"{prefixo}_{uuid.uuid4().hex[:8]}.html"
+        nome_arquivo = f"{prefixo}_{uuid.uuid4().hex}.html"
         blob = storage.bucket().blob(nome_arquivo)
         blob.upload_from_string(conteudo_html, content_type='text/html')
         blob.make_public()
@@ -135,7 +135,7 @@ def construir_html_jogo(json_dados, titulo, professor):
         f"<p class='text-center text-slate-400 text-sm mb-4 pb-4 border-b border-slate-700'>Prof. {html.escape(professor)}</p>",
         "<div id='tela-p'>",
         "<h2 id='t-perg' class='text-xl font-bold mb-2 text-center'>A carregar...</h2>",
-        "<p id='dica-interacao' class='text-center text-red-400 text-sm font-extrabold mb-4 animate-pulse italic'>👉 Toque numa opção para responder!</p>",
+        "<p id='dica-interacao' style='display:block;' class='text-center text-red-400 text-sm font-extrabold mb-4 animate-pulse italic'>👉 Toque numa opção para responder!</p>",
         "<div id='opc' class='flex flex-col gap-3'></div>",
         "<div id='tela-f' style='display:none;' class='mt-6 p-4 rounded-xl text-center'><h3 id='f-tit' class='font-bold text-lg mb-2'></h3><p id='f-txt' class='text-sm mb-4'></p>",
         "<button onclick='prox()' class='w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-xl font-bold text-white shadow-lg cursor-pointer'>➡️ Seguinte Pergunta</button></div></div>",
