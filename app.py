@@ -21,12 +21,14 @@ import os
 st.set_page_config(page_title="Quizify", layout="centered")
 
 def obter_segredo(chave):
-    # Tenta ler do Streamlit primeiro, se não encontrar, lê do Render (os.environ)
-    if chave in st.secrets:
-        return st.secrets[chave]
-    elif chave in os.environ:
+    import os
+    # 1. Tenta ler as Variáveis de Ambiente do Render primeiro
+    if chave in os.environ:
         return os.environ[chave]
-    else:
+    # 2. Se não encontrar, tenta ler do Streamlit (para quando testar no PC)
+    try:
+        return st.secrets[chave]
+    except Exception:
         raise ValueError(f"Segredo não encontrado: {chave}")
 
 try:
