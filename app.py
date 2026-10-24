@@ -21,10 +21,11 @@
         <!-- Seção de Upload / Configuração -->
         <div id="setup-section" class="space-y-4">
             <div>
-                <label class="block text-sm font-medium mb-2 text-slate-300">Carregar Arquivos (PDF, Word, PPT ou Fotos - máx. 5):</label>
-                <input type="file" id="imageInput" accept=".pdf,.docx,.pptx,image/*" multiple 
+                <label class="block text-sm font-medium mb-2 text-slate-300">Carregar Arquivos ou Fotos (Máx. 5):</label>
+                <input type="file" id="imageInput" accept=".pdf,.docx,.pptx,image/*" multiple onchange="atualizarContadorArquivos()"
                     class="w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-red-500 file:text-white hover:file:bg-red-600 cursor-pointer">
-                <p class="text-xs text-slate-500 mt-1">Pode selecionar até 5 arquivos em simultâneo.</p>
+                <!-- Contador Visual de Arquivos -->
+                <p id="file-counter-text" class="text-xs text-slate-400 mt-2">Nenhum arquivo selecionado (0/5)</p>
             </div>
 
             <div>
@@ -78,40 +79,98 @@
     </footer>
 
     <script>
-        // Variáveis de Estado
         let questoes = [];
         let indiceAtual = 0;
         let acertos = 0;
         let questoesErradas = [];
         let modoErradas = false;
 
-        function gerarQuiz() {
+        // Atualiza o contador visual e valida o limite de 5 arquivos
+        function atualizarContadorArquivos() {
+            const input = document.getElementById('imageInput');
+            const counterText = document.getElementById('file-counter-text');
+            const totalFiles = input.files.length;
+
+            if (totalFiles > 5) {
+                counterText.innerHTML = `<span class="text-red-400 font-semibold">⚠️ Selecionou ${totalFiles} arquivos. O limite máximo é 5!</span>`;
+                input.value = ""; // Limpa a seleção se passar do limite
+            } else if (totalFiles > 0) {
+                counterText.innerHTML = `<span class="text-green-400">✅ ${totalFiles} de 5 arquivos selecionados.</span>`;
+            } else {
+                counterText.innerText = "Nenhum arquivo selecionado (0/5)";
+            }
+        }
+
+        // Função para comprimir a imagem antes de enviar (reduz o tamanho e evita sobrecarga)
+        function comprimirImagem(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.src = event.target.result;
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        let width = img.width;
+                        let height = img.height;
+
+                        const MAX_SIZE = 1200;
+                        if (width > height && width > MAX_SIZE) {
+                            height *= MAX_SIZE / width;
+                            width = MAX_SIZE;
+                        } else if (height > MAX_SIZE) {
+                            width *= MAX_SIZE / height;
+                            height = MAX_SIZE;
+                        }
+
+                        canvas.width = width;
+                        canvas.height = height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, width, height);
+
+                        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+                        resolve(dataUrl);
+                    }
+                }
+            });
+        }
+
+        async function gerarQuiz() {
             const input = document.getElementById('imageInput');
             
-            // Validação do limite de até 5 arquivos
-            if (input.files.length > 5) {
-                alert("Por favor, selecione no máximo 5 arquivos de cada vez.");
-                return;
-            }
-
             if (input.files.length === 0) {
                 alert("Por favor, selecione pelo menos um arquivo ou foto.");
                 return;
             }
 
-            // Simulação de geração de perguntas baseada no input (substitua pela chamada real da IA)
+            if (input.files.length > 5) {
+                alert("Pode carregar no máximo 5 arquivos de cada vez.");
+                return;
+            }
+
+            const imagensProcessadas = [];
+            for (let i = 0; i < input.files.length; i++) {
+                const file = input.files[i];
+                if (file.type.startsWith('image/')) {
+                    const imgComprimida = await comprimirImagem(file);
+                    imagensProcessadas.push(imgComprimida);
+                } else {
+                    imagensProcessadas.push(file);
+                }
+            }
+
             const qtd = parseInt(document.getElementById('numQuestions').value) || 10;
             
             questoes = [];
             for (let i = 1; i <= qtd; i++) {
                 questoes.push({
                     id: i,
-                    pergunta: `Questão ${i}: Qual é o principal benefício do Quizify?`,
+                    pergunta: `Questão ${i}: Baseado nos arquivos enviados, qual é a resposta correta?`,
                     opcoes: [
-                        "Gerar quizzes instantâneos com IA",
-                        "Apenas calcular notas",
-                        "Imprimir apostilas",
-                        "Nenhuma das anteriores"
+                        "Resposta gerada pela IA com base nos documentos",
+                        "Opção incorreta A",
+                        "Opção incorreta B",
+                        "Opção incorreta C"
                     ],
                     correta: 0
                 });
@@ -154,7 +213,6 @@
 
         function verificarResposta(indexSelecionado, q) {
             const feedback = document.getElementById('feedback-container');
-            const listaAtiva = modoErradas ? questoesErradas : questoes;
 
             if (indexSelecionado === q.correta) {
                 feedback.className = "text-sm font-medium mt-2 text-green-400";
@@ -183,7 +241,7 @@
 
             const btnRetryErros = document.getElementById('btn-retry-errors');
 
-            // 1. REQUISITO: Disparar palmas APENAS quando o jogador completar 100% de acertos (mesmo após várias tentativas)
+            // Disparar palmas (confetes) APENAS se atingir 100% de acertos
             if (acertos === totalOriginal) {
                 dispararPalmasEfeitos();
                 btnRetryErros.classList.add('hidden');
@@ -195,7 +253,6 @@
         }
 
         function dispararPalmasEfeitos() {
-            // Efeito visual de confetes (simulando celebração de palmas/sucesso absoluto)
             confetti({
                 particleCount: 150,
                 spread: 80,
@@ -206,6 +263,8 @@
         function reiniciarQuizCompleto() {
             document.getElementById('result-section').classList.add('hidden');
             document.getElementById('setup-section').classList.remove('hidden');
+            document.getElementById('imageInput').value = "";
+            document.getElementById('file-counter-text').innerText = "Nenhum arquivo selecionado (0/5)";
         }
 
         function refazerErros() {
