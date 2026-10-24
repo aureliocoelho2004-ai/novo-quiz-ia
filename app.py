@@ -260,22 +260,20 @@ else:
                         html_final = obter_html_flashcards(dados, t_titulo, n_prof)
                         prefixo = "flashcard"
                     
-                    st.session_state["conteudo_pronto"] = html_final
-                    st.session_state["link_conteudo"] = fazer_upload_firebase(html_final, prefixo)
-                    st.session_state["ultimo_uso"] = time.time()
-                    st.session_state["geracoes_nesta_sessao"] += 1
-                    
-                    st.success(f"✅ {tipo_conteudo} publicado com sucesso!")
-                except Exception as e:
-                    st.error(f"Erro ao gerar conteúdo: {e}")
-
-    if st.session_state.get("conteudo_pronto"):
+if st.session_state.get("conteudo_pronto"):
         st.markdown("---")
         
         # Link da Nuvem para WhatsApp
         if st.session_state.get("link_conteudo"):
-            st.info("📱 **LINK PARA ALUNOS (Funciona perfeitamente em iOS e Android):**")
+            st.info("📱 **LINK PARA ALUNOS (Funciona em iOS e Android):**")
             st.code(st.session_state["link_conteudo"], language="text")
             st.write("Copie o link acima e envie no WhatsApp. Os alunos não precisam de descarregar nada!")
 
-        #
+        # Botão de Download Clássico (MOVIDO PARA CIMA)
+        nome_seg = re.sub(r'[^\w\s-]', '', t_titulo).strip().replace(' ', '_') or "conteudo"
+        st.download_button("📥 Descarregar Ficheiro HTML (Android/PC)", st.session_state["conteudo_pronto"], f"{nome_seg}.html", "text/html", use_container_width=True)
+
+        st.markdown("---")
+        
+        # Tela de Pré-visualização (O jogo aparece por último)
+        components.html(st.session_state["conteudo_pronto"], height=750, scrolling=True)
