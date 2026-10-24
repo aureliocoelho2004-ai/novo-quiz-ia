@@ -74,8 +74,9 @@ if "link_conteudo" not in st.session_state: st.session_state["link_conteudo"] = 
 if "usuario_atual" not in st.session_state: st.session_state["usuario_atual"] = ""
 
 def verificar_seguranca(arquivos):
-    if len(arquivos) > 4:
-        st.error("❌ Por favor, envie no máximo 4 imagens de cada vez para garantir estabilidade.")
+    # Sem restrição de quantidade agora que o servidor aguenta e compacta tudo na origem
+    if sum([arq.size for arq in arquivos]) > 100 * 1024 * 1024: 
+        st.error("❌ O tamanho total dos ficheiros excede o limite permitido.")
         return False
     return True
 
@@ -92,12 +93,10 @@ def processar_arquivo(a):
         return "\n".join(t)
     elif n.endswith((".png", ".jpg", ".jpeg")):
         try:
-            # Abre a imagem e converte para RGB (evita erros com PNGs transparentes)
+            # Compactação agressiva na origem para poupar RAM e acelerar o Gemini
             img = Image.open(a).convert("RGB")
-            # Redimensiona agressivamente para o limite seguro de leitura de texto (800x800)
             img.thumbnail((800, 800))
             
-            # Comprime em memória para menos de 100kb antes de enviar ao Gemini
             buffer = io.BytesIO()
             img.save(buffer, format="JPEG", quality=75)
             buffer.seek(0)
@@ -222,12 +221,11 @@ else:
     n_prof = st.text_input("Professor(a)")
     q_itens = st.number_input("Quantidade", min_value=1, max_value=50, value=5)
     
-    st.info("💡 **Aviso:** Envie no máximo **4 imagens** por vez para garantir o processamento instantâneo.")
     arquivos = st.file_uploader("Ficheiros", type=["pdf", "docx", "pptx", "png", "jpg", "jpeg"], accept_multiple_files=True)
 
     if arquivos and st.button(f"Gerar {tipo_conteudo}", use_container_width=True):
         if verificar_seguranca(arquivos):
-            with st.spinner("A converter e a otimizar imagens no servidor..."):
+            with st.spinner("A otimizar imagens e a gerar conteúdo..."):
                 try:
                     txt = "".join([processar_arquivo(a)+"\n" for a in arquivos])
                     dados = gerar_dados_ia(txt, q_itens, tipo_conteudo)
