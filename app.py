@@ -39,14 +39,12 @@ except Exception as e:
 # ==========================================
 # FUNÇÃO DE UPLOAD PARA A NUVEM
 # ==========================================
-def fazer_upload_firebase(conteudo_html, prefixo="jogo"):
+def fazer_upload_firebase(conteudo_html, prefixo="quizify"):
     try:
         nome_arquivo = f"{prefixo}_{uuid.uuid4().hex[:8]}.html"
         bucket = storage.bucket()
         blob = bucket.blob(nome_arquivo)
-        # Faz o upload com o tipo de ficheiro correto
         blob.upload_from_string(conteudo_html, content_type='text/html')
-        # Torna o link público para os alunos acederem
         blob.make_public()
         return blob.public_url
     except Exception as e:
@@ -81,10 +79,10 @@ if "ultimo_uso" not in st.session_state:
     st.session_state["ultimo_uso"] = 0.0
 if "geracoes_nesta_sessao" not in st.session_state:
     st.session_state["geracoes_nesta_sessao"] = 0
-if "quiz_pronto" not in st.session_state:
-    st.session_state["quiz_pronto"] = None
-if "link_quiz" not in st.session_state:
-    st.session_state["link_quiz"] = None
+if "conteudo_pronto" not in st.session_state:
+    st.session_state["conteudo_pronto"] = None
+if "link_conteudo" not in st.session_state:
+    st.session_state["link_conteudo"] = None
 
 def tela_login():
     st.markdown("<h2 style='text-align: center;'>🔐 Acesso Restrito - Quizify</h2>", unsafe_allow_html=True)
@@ -107,8 +105,8 @@ def tela_login():
 def logout():
     st.session_state["autenticado"] = False
     st.session_state["usuario_atual"] = ""
-    st.session_state["quiz_pronto"] = None
-    st.session_state["link_quiz"] = None
+    st.session_state["conteudo_pronto"] = None
+    st.session_state["link_conteudo"] = None
     st.rerun()
 
 def verificar_seguranca(arquivos):
@@ -117,16 +115,16 @@ def verificar_seguranca(arquivos):
         st.error(f"❌ O tamanho total excede o limite de {TAMANHO_MAXIMO_MB}MB.")
         return False
     if st.session_state["geracoes_nesta_sessao"] >= LIMITE_POR_SESSAO:
-        st.error(f"⚠️ Limite de {LIMITE_POR_SESSAO} conteúdos atingido.")
+        st.error(f"⚠️ Limite de {LIMITE_POR_SESSAO} conteúdos atingido nesta sessão.")
         return False
     tempo_decorrido = time.time() - st.session_state["ultimo_uso"]
     if tempo_decorrido < COOLDOWN_SEGUNDOS:
-        st.warning(f"⏳ Aguarde {int(COOLDOWN_SEGUNDOS - tempo_decorrido)}s.")
+        st.warning(f"⏳ Aguarde {int(COOLDOWN_SEGUNDOS - tempo_decorrido)}s para criar outro.")
         return False
     return True
 
 # ==========================================
-# LEITURA E IA
+# LEITURA DOS FICHEIROS
 # ==========================================
 def extrair_texto_pdf(a): a.seek(0); return "".join([p.extract_text()+"\n" for p in PyPDF2.PdfReader(a).pages if p.extract_text()])
 def extrair_texto_docx(a): a.seek(0); return "\n".join([p.text for p in docx.Document(a).paragraphs if p.text.strip()])
@@ -149,17 +147,29 @@ def processar_arquivo(a):
     elif n.endswith((".png", ".jpg", ".jpeg")): return extrair_texto_imagem(a)
     else: raise ValueError("Formato não suportado.")
 
-def gerar_quiz_da_ia(texto_base, num_perguntas):
-    prompt = f"""Crie um quiz com {num_perguntas} perguntas do texto. Retorne APENAS um array JSON:
-    [{{ "pergunta": "...", "opcoes": ["A", "B", "C", "D"], "resposta_correta": 1, "explicacao": "..." }}]
-    --- TEXTO --- {texto_base[:15000]}"""
+# ==========================================
+# INTELIGÊNCIA ARTIFICIAL (QUIZ / FLASHCARDS)
+# ==========================================
+def gerar_dados_ia(texto_base, quantidade, tipo_conteudo):
+    if tipo_conteudo == "Quiz":
+        prompt = f"""Crie um quiz com {quantidade} perguntas focadas no texto. Retorne APENAS um array JSON neste formato exato:
+        [{{ "pergunta": "...", "opcoes": ["A", "B", "C", "D"], "resposta_correta": 1, "explicacao": "..." }}]
+        --- TEXTO --- {texto_base[:15000]}"""
+    else:
+        prompt = f"""Crie {quantidade} flashcards extraindo os conceitos mais importantes. Retorne APENAS um array JSON:
+        [{{ "frente": "conceito/pergunta", "verso": "resposta/explicação" }}]
+        --- TEXTO --- {texto_base[:15000]}"""
+        
     txt = re.sub(r'```json\n?', '', modelo.generate_content(prompt).text)
     return json.loads(re.sub(r'```\n?', '', txt).strip())
 
-def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
-    t_seg = html.escape(titulo_quiz)
-    p_seg = html.escape(nome_professor)
-    j_str = json.dumps(json_perguntas)
+# ==========================================
+# CÓDIGO HTML (JOGO E CARTÕES)
+# ==========================================
+def obter_html_jogo(json_dados, titulo, professor):
+    t_seg = html.escape(titulo)
+    p_seg = html.escape(professor)
+    j_str = json.dumps(json_dados)
 
     html_export = """<!DOCTYPE html>
 <html lang="pt-PT"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>[[TITULO]]</title><script src="https://cdn.tailwindcss.com"></script><style>body { font-family: sans-serif; } .btn-opcao { transition: all 0.2s; } .correto { background-color: #22c55e !important; color: white !important; } .errado { background-color: #ef4444 !important; color: white !important; }</style></head>
@@ -168,25 +178,58 @@ def obter_html_jogo(json_perguntas, titulo_quiz, nome_professor):
     <div class="w-full max-w-md bg-slate-800 rounded-2xl p-6 border border-slate-700">
         <h1 class="text-2xl font-extrabold text-center text-indigo-400 mb-1">[[TITULO]]</h1>
         <p class="text-center text-slate-400 text-sm mb-4 pb-4 border-b border-slate-700">Prof. [[PROFESSOR]]</p>
-        <div id="tela-pergunta"><h2 id="texto-pergunta" class="text-xl font-bold mb-4 text-center">A carregar...</h2><p id="dica-interacao" class="text-center text-red-500 text-2xl font-extrabold mb-4 animate-pulse italic">👉 Toque numa opção para responder!</p><div id="opcoes-container" class="flex flex-col gap-3"></div><div id="tela-feedback" class="hidden mt-6 p-4 rounded-xl text-center"><h3 id="feedback-titulo" class="font-bold text-lg mb-2"></h3><p id="feedback-texto" class="text-sm"></p><button onclick="proximaPergunta()" class="mt-4 w-full bg-indigo-600 py-3 rounded-xl">Continuar</button></div></div>
-        <div id="tela-resultado" class="hidden text-center"><div class="text-6xl mb-4">🏆</div><h2 class="text-2xl font-bold mb-2">Fim de Jogo!</h2><p>Acertou <span id="pontuacao-final" class="font-bold text-indigo-400 text-2xl"></span> do quiz.</p><button onclick="location.reload()" class="mt-6 w-full bg-indigo-600 py-3 rounded-xl">Jogar Novamente</button></div>
+        <div id="tela-pergunta"><h2 id="texto-pergunta" class="text-xl font-bold mb-4 text-center">A carregar...</h2><p id="dica-interacao" class="text-center text-red-500 text-2xl font-extrabold mb-4 animate-pulse italic">👉 Toque numa opção para responder!</p><div id="opcoes-container" class="flex flex-col gap-3"></div><div id="tela-feedback" class="hidden mt-6 p-4 rounded-xl text-center"><h3 id="feedback-titulo" class="font-bold text-lg mb-2"></h3><p id="feedback-texto" class="text-sm"></p><button onclick="proximaPergunta()" class="mt-4 w-full bg-indigo-600 py-3 rounded-xl font-bold">Continuar</button></div></div>
+        <div id="tela-resultado" class="hidden text-center"><div class="text-6xl mb-4">🏆</div><h2 class="text-2xl font-bold mb-2">Fim de Jogo!</h2><p>Acertou <span id="pontuacao-final" class="font-bold text-indigo-400 text-2xl"></span> do quiz.</p><button onclick="location.reload()" class="mt-6 w-full bg-indigo-600 py-3 rounded-xl font-bold">Jogar Novamente</button></div>
     </div>
     <script>
-        const perguntas = [[JSON_PERGUNTAS]]; let indiceAtual = 0; let acertos = 0; let respondido = false;
-        function carregarPergunta() { respondido = false; const p = perguntas[indiceAtual]; document.getElementById('texto-pergunta').innerText = p.pergunta; document.getElementById('tela-feedback').classList.add('hidden'); const c = document.getElementById('opcoes-container'); c.innerHTML = ''; p.opcoes.forEach((op, i) => { const btn = document.createElement('button'); btn.innerText = op; btn.className = 'btn-opcao w-full bg-slate-700 border-2 border-slate-600 text-left py-3 px-5 rounded-xl text-slate-200'; btn.onclick = () => verificarResposta(i, btn); c.appendChild(btn); }); }
+        const perguntas = [[JSON_DADOS]]; let indiceAtual = 0; let acertos = 0; let respondido = false;
+        function carregarPergunta() { respondido = false; const p = perguntas[indiceAtual]; document.getElementById('texto-pergunta').innerText = p.pergunta; document.getElementById('tela-feedback').classList.add('hidden'); const c = document.getElementById('opcoes-container'); c.innerHTML = ''; p.opcoes.forEach((op, i) => { const btn = document.createElement('button'); btn.innerText = op; btn.className = 'btn-opcao w-full bg-slate-700 border-2 border-slate-600 text-left py-3 px-5 rounded-xl text-white font-bold text-lg'; btn.onclick = () => verificarResposta(i, btn); c.appendChild(btn); }); }
         function verificarResposta(iSel, btn) { if (respondido) return; respondido = true; document.getElementById('dica-interacao').style.display = 'none'; const p = perguntas[indiceAtual]; const telaF = document.getElementById('tela-feedback'); telaF.classList.remove('hidden'); if (iSel === p.resposta_correta) { btn.classList.add('correto'); acertos++; telaF.className = 'mt-6 p-4 rounded-xl text-center bg-green-900 block'; document.getElementById('feedback-titulo').innerText = '✅ Correto!'; document.getElementById('feedback-texto').innerText = p.explicacao; } else { btn.classList.add('errado'); telaF.className = 'mt-6 p-4 rounded-xl text-center bg-red-900 block'; document.getElementById('feedback-titulo').innerText = '❌ Incorreto!'; document.getElementById('feedback-texto').innerHTML = `A certa era: <b>${p.opcoes[p.resposta_correta]}</b>.<br><br>${p.explicacao}`; } }
         function proximaPergunta() { indiceAtual++; if (indiceAtual < perguntas.length) carregarPergunta(); else mostrarResultado(); }
         function mostrarResultado() { document.getElementById('som-palmas').play().catch(e=>{}); document.getElementById('tela-pergunta').classList.add('hidden'); document.getElementById('tela-resultado').classList.remove('hidden'); document.getElementById('pontuacao-final').innerText = Math.round((acertos / perguntas.length) * 100) + '%'; }
         carregarPergunta();
     </script>
 </body></html>"""
-    return html_export.replace("[[TITULO]]", t_seg).replace("[[PROFESSOR]]", p_seg).replace("[[JSON_PERGUNTAS]]", j_str)
+    return html_export.replace("[[TITULO]]", t_seg).replace("[[PROFESSOR]]", p_seg).replace("[[JSON_DADOS]]", j_str)
+
+def obter_html_flashcards(json_dados, titulo, professor):
+    t_seg = html.escape(titulo)
+    p_seg = html.escape(professor)
+    j_str = json.dumps(json_dados)
+    
+    html_export = """<!DOCTYPE html>
+<html lang="pt-PT"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>[[TITULO]]</title><script src="https://cdn.tailwindcss.com"></script>
+<style>.perspective { perspective: 1000px; } .flip-card-inner { transition: transform 0.6s; transform-style: preserve-3d; position: relative; width: 100%; height: 100%; } .flipped .flip-card-inner { transform: rotateY(180deg); } .flip-card-front, .flip-card-back { backface-visibility: hidden; position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 2rem; text-align: center; border-radius: 1rem; } .flip-card-back { transform: rotateY(180deg); background-color: #4f46e5; }</style></head>
+<body class="bg-slate-900 text-white flex items-center justify-center min-h-screen p-4">
+    <div class="w-full max-w-md bg-slate-800 rounded-2xl p-6 border border-slate-700 flex flex-col items-center">
+        <h1 class="text-2xl font-extrabold text-center text-indigo-400 mb-1">[[TITULO]]</h1>
+        <p class="text-center text-slate-400 text-sm mb-4 pb-4 border-b border-slate-700 w-full">Prof. [[PROFESSOR]]</p>
+        <p class="text-slate-400 mb-2 text-sm">Cartão <span id="contador">1</span> de <span id="total"></span></p>
+        <div id="card" class="perspective w-full h-64 mb-6 cursor-pointer" onclick="virarCard()">
+            <div class="flip-card-inner bg-slate-700 border-2 border-slate-600 rounded-2xl shadow-xl">
+                <div class="flip-card-front"><h2 id="frente" class="text-xl font-bold"></h2></div>
+                <div class="flip-card-back"><p id="verso" class="text-lg font-medium"></p></div>
+            </div>
+        </div>
+        <p class="text-center text-red-500 font-bold mb-4 animate-pulse">👉 Toque no cartão para virar!</p>
+        <div class="flex justify-between w-full gap-4">
+            <button onclick="mudar(-1)" class="flex-1 bg-slate-700 py-3 rounded-xl font-bold hover:bg-slate-600">Anterior</button>
+            <button onclick="mudar(1)" class="flex-1 bg-indigo-600 py-3 rounded-xl font-bold hover:bg-indigo-500">Próximo</button>
+        </div>
+    </div>
+    <script>
+        const cards = [[JSON_DADOS]]; let indice = 0; document.getElementById('total').innerText = cards.length;
+        function carregar() { document.getElementById('card').classList.remove('flipped'); setTimeout(() => { document.getElementById('frente').innerText = cards[indice].frente; document.getElementById('verso').innerText = cards[indice].verso; document.getElementById('contador').innerText = indice + 1; }, 150); }
+        function virarCard() { document.getElementById('card').classList.toggle('flipped'); }
+        function mudar(dir) { if (indice + dir >= 0 && indice + dir < cards.length) { indice += dir; carregar(); } }
+        carregar();
+    </script>
+</body></html>"""
+    return html_export.replace("[[TITULO]]", t_seg).replace("[[PROFESSOR]]", p_seg).replace("[[JSON_DADOS]]", j_str)
 
 # ==========================================
-# INTERFACE PRINCIPAL
+# INTERFACE PRINCIPAL DO STREAMLIT
 # ==========================================
-FORMATOS = ["pdf", "docx", "pptx", "png", "jpg", "jpeg"]
-
 if not st.session_state["autenticado"]:
     tela_login()
 else:
@@ -195,43 +238,44 @@ else:
         if st.button("Sair", use_container_width=True): logout()
 
     st.title("🎲 Quizify")
-    st.subheader("Configurações do Quiz")
+    st.subheader("Criar Conteúdo Interativo")
     
-    t_quiz = st.text_input("Título", value="Desafio de Conhecimento")
+    tipo_conteudo = st.radio("O que deseja criar?", ["Quiz", "Flashcards"], horizontal=True)
+    t_titulo = st.text_input("Título", value="Desafio de Conhecimento")
     n_prof = st.text_input("Professor(a)", placeholder="Ex: Maria")
-    q_perg = st.number_input("Perguntas", min_value=1, max_value=50, value=5)
-    arquivos = st.file_uploader("Ficheiros", type=FORMATOS, accept_multiple_files=True)
+    q_itens = st.number_input("Quantidade (Perguntas/Cartões)", min_value=1, max_value=50, value=5)
+    arquivos = st.file_uploader("Ficheiros", type=["pdf", "docx", "pptx", "png", "jpg", "jpeg"], accept_multiple_files=True)
 
-    if arquivos and st.button("✨ Gerar e Publicar Jogo", use_container_width=True):
+    if arquivos and st.button(f"✨ Gerar {tipo_conteudo}", use_container_width=True):
         if verificar_seguranca(arquivos):
-            with st.spinner("A gerar o jogo e a publicar na nuvem..."):
+            with st.spinner(f"A gerar {tipo_conteudo.lower()} e a publicar na nuvem..."):
                 try:
                     txt = "".join([processar_arquivo(a)+"\n" for a in arquivos])
-                    dados = gerar_quiz_da_ia(txt, q_perg)
-                    html_final = obter_html_jogo(dados, t_quiz, n_prof)
+                    dados = gerar_dados_ia(txt, q_itens, tipo_conteudo)
                     
-                    st.session_state["quiz_pronto"] = html_final
-                    # Faz o upload e guarda o link público
-                    st.session_state["link_quiz"] = fazer_upload_firebase(html_final)
+                    if tipo_conteudo == "Quiz":
+                        html_final = obter_html_jogo(dados, t_titulo, n_prof)
+                        prefixo = "quiz"
+                    else:
+                        html_final = obter_html_flashcards(dados, t_titulo, n_prof)
+                        prefixo = "flashcard"
+                    
+                    st.session_state["conteudo_pronto"] = html_final
+                    st.session_state["link_conteudo"] = fazer_upload_firebase(html_final, prefixo)
                     st.session_state["ultimo_uso"] = time.time()
                     st.session_state["geracoes_nesta_sessao"] += 1
                     
-                    st.success("✅ Jogo publicado com sucesso!")
+                    st.success(f"✅ {tipo_conteudo} publicado com sucesso!")
                 except Exception as e:
-                    st.error(f"Erro: {e}")
+                    st.error(f"Erro ao gerar conteúdo: {e}")
 
-    if st.session_state.get("quiz_pronto"):
+    if st.session_state.get("conteudo_pronto"):
         st.markdown("---")
         
-        # Bloco de Partilha (Link para iOS)
-        if st.session_state.get("link_quiz"):
-            st.info("📱 **LINK PARA ALUNOS (Funciona em iOS e Android):**")
-            st.code(st.session_state["link_quiz"], language="text")
-            st.write("Copie o link acima e cole no WhatsApp. Os alunos jogarão diretamente no navegador sem precisarem descarregar nada!")
+        # Link da Nuvem para WhatsApp
+        if st.session_state.get("link_conteudo"):
+            st.info("📱 **LINK PARA ALUNOS (Funciona perfeitamente em iOS e Android):**")
+            st.code(st.session_state["link_conteudo"], language="text")
+            st.write("Copie o link acima e envie no WhatsApp. Os alunos não precisam de descarregar nada!")
 
-        # Jogo na tela
-        components.html(st.session_state["quiz_pronto"], height=750, scrolling=True)
-
-        # Botão para Android/PC
-        nome_seg = re.sub(r'[^\w\s-]', '', t_quiz).strip().replace(' ', '_') or "quiz"
-        st.download_button("📥 Descarregar Ficheiro Offline (Android/PC)", st.session_state["quiz_pronto"], f"{nome_seg}.html", "text/html", use_container_width=True)
+        #
