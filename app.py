@@ -246,7 +246,7 @@ else:
     q_itens = st.number_input("Quantidade (Perguntas/Cartões)", min_value=1, max_value=50, value=5)
     arquivos = st.file_uploader("Ficheiros", type=["pdf", "docx", "pptx", "png", "jpg", "jpeg"], accept_multiple_files=True)
 
-   if arquivos and st.button(f"✨ Gerar {tipo_conteudo}", use_container_width=True):
+    if arquivos and st.button(f"✨ Gerar {tipo_conteudo}", use_container_width=True):
         if verificar_seguranca(arquivos):
             with st.spinner(f"A gerar {tipo_conteudo.lower()} e a publicar na nuvem..."):
                 try:
