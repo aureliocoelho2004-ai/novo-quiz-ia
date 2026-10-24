@@ -4,5 +4,4 @@ PyPDF2
 python-docx
 python-pptx
 Pillow
-pytesseract
 firebase-admin
