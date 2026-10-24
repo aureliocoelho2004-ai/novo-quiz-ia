@@ -7,7 +7,6 @@ import PyPDF2
 import docx
 import pptx
 from PIL import Image
-import pytesseract
 import json
 import re
 import time
@@ -35,7 +34,8 @@ try:
     # 1. Configurar Gemini
     GEMINI_API_KEY = obter_segredo("GEMINI_API_KEY")
     genai.configure(api_key=GEMINI_API_KEY)
-    modelo = genai.GenerativeModel("gemini-3.8-flash")
+    # Modelo corrigido para a versão oficial mais recente e rápida
+    modelo = genai.GenerativeModel("gemini-1.5-flash")
     
     # 2. Configurar Firebase
     if not firebase_admin._apps:
@@ -148,10 +148,19 @@ def extrair_texto_pptx(a):
         for sh in s.shapes:
             if sh.has_text_frame: t.extend([p.text.strip() for p in sh.text_frame.paragraphs if p.text.strip()])
     return "\n".join(t)
+
 def extrair_texto_imagem(a):
-    a.seek(0); img = Image.open(a).convert('L')
-    try: return pytesseract.image_to_string(img, lang='por')
-    except: return pytesseract.image_to_string(img)
+    a.seek(0)
+    img = Image.open(a)
+    try:
+        # Usar a visão nativa do Gemini para ler a imagem
+        resposta_visao = modelo.generate_content([
+            "Transcreve todo o texto visível nesta imagem. Se tiver esquemas ou tópicos, organiza-os em texto claro.", 
+            img
+        ])
+        return resposta_visao.text
+    except Exception as e:
+        return f"[Erro ao ler imagem com IA: {e}]"
 
 def processar_arquivo(a):
     n = a.name.lower()
@@ -294,9 +303,4 @@ else:
 
         # Botão de Download Clássico (MOVIDO PARA CIMA)
         nome_seg = re.sub(r'[^\w\s-]', '', t_titulo).strip().replace(' ', '_') or "conteudo"
-        st.download_button("📥 Descarregar Ficheiro HTML (Android/PC)", st.session_state["conteudo_pronto"], f"{nome_seg}.html", "text/html", use_container_width=True)
-
-        st.markdown("---")
-        
-        # Tela de Pré-visualização (O jogo aparece por último)
-        components.html(st.session_state["conteudo_pronto"], height=750, scrolling=True)
+        st.download_button("📥 Descarregar Ficheiro HTML (Android/
