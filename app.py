@@ -79,13 +79,22 @@ def verificar_seguranca(arquivos):
 def processar_arquivo(a):
     n = a.name.lower()
     a.seek(0)
-    if n.endswith(".pdf"): return "".join([p.extract_text()+"\n" for p in PyPDF2.PdfReader(a).pages if p.extract_text()])
-    elif n.endswith(".docx"): return "\n".join([p.text for p in docx.Document(a).paragraphs if p.text.strip()])
+    if n.endswith(".pdf"):
+        return "".join([p.extract_text()+"\n" for p in PyPDF2.PdfReader(a).pages if p.extract_text()])
+    elif n.endswith(".docx"):
+        return "\n".join([p.text for p in docx.Document(a).paragraphs if p.text.strip()])
     elif n.endswith(".pptx"):
         t = []
-        for s in pptx.Presentation(a).slides:
+        prs = pptx.Presentation(a)
+        for s in prs.slides:
             for sh in s.shapes:
-                if sh.has_text_frame: t.extend([p.text.strip() for p in sh.text_frame.paragraphs if p.text.strip()])
+                if sh.has_text_frame:
+                    for p in sh.text_frame.paragraphs:
+                        if p.text.strip(): t.append(p.text.strip())
+                if sh.has_table:
+                    for row in sh.table.rows:
+                        for cell in row.cells:
+                            if cell.text.strip(): t.append(cell.text.strip())
         return "\n".join(t)
     elif n.endswith((".png", ".jpg", ".jpeg")):
         try:
@@ -97,7 +106,7 @@ def processar_arquivo(a):
             img_otimizada = Image.open(buffer)
 
             resposta_visao = modelo.generate_content([
-                "Transcreve todo o texto visível nesta imagem com precisão.", 
+                "Transcreve todo o texto visível nesta imagem com precisão máxima.", 
                 img_otimizada
             ])
             return resposta_visao.text
@@ -106,6 +115,8 @@ def processar_arquivo(a):
     return ""
 
 def gerar_dados_ia(texto_base, quantidade, tipo_conteudo):
+    if not texto_base.strip():
+        raise ValueError("O ficheiro enviado não contém texto legível.")
     if tipo_conteudo == "Quiz":
         p = f"Crie um quiz com {quantidade} perguntas focadas no texto. Retorne APENAS um array JSON: [{{'pergunta':'...','opcoes':['A','B','C','D'],'resposta_correta':1,'explicacao':'...'}}] TEXTO: {texto_base[:15000]}"
     else:
@@ -131,8 +142,8 @@ def construir_html_jogo(json_dados, titulo, professor):
         "<div id='tela-r' style='display:none;' class='text-center'><div class='text-6xl mb-4'>🏆</div><h2 class='text-2xl font-bold mb-2'>Fim de Jogo!</h2>",
         "<p class='mb-6'>Acertou <span id='p-fin' class='font-bold text-indigo-400 text-2xl'></span> do quiz.</p>",
         "<div class='flex flex-col gap-3'>",
-        "<button onclick='reiniciarCompleto()' class='w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-xl font-bold text-white shadow-lg'>🔄 Tentar o Quiz Completo</button>",
-        "<button id='btn-erradas' onclick='reiniciarErradas()' style='display:none;' class='w-full bg-amber-600 hover:bg-amber-500 py-3 rounded-xl font-bold text-white shadow-lg'>🎯 Refazer Apenas as Erradas</button>",
+        "<button onclick='reiniciarCompleto()' class='w-full bg-indigo-600 hover:bg-indigo-500 py-3 rounded-xl font-bold text-white shadow-lg cursor-pointer'>🔄 Tentar o Quiz Completo</button>",
+        "<button id='btn-erradas' onclick='reiniciarErradas()' style='display:none;' class='w-full bg-amber-600 hover:bg-amber-500 py-3 rounded-xl font-bold text-white shadow-lg cursor-pointer'>🎯 Refazer Apenas as Erradas</button>",
         "</div></div></div>",
         "<script>",
         f"let pergsOriginais={json.dumps(json_dados)}; let pergs = [...pergsOriginais]; let perguntasErradas = []; let ind=0; let acertos=0; let resp=false;",
@@ -147,7 +158,7 @@ def construir_html_jogo(json_dados, titulo, professor):
         "  p.opcoes.forEach((o,i)=>{",
         "    const b=document.createElement('button');",
         "    b.innerText=o;",
-        "    b.className='w-full bg-slate-700 border-2 border-slate-600 text-left py-3 px-5 rounded-xl text-white font-bold text-lg hover:bg-slate-600';",
+        "    b.className='w-full bg-slate-700 border-2 border-slate-600 text-left py-3 px-5 rounded-xl text-white font-bold text-lg hover:bg-slate-600 cursor-pointer';",
         "    b.onclick=()=>verificar(i,b);",
         "    c.appendChild(b);",
         "  });",
@@ -293,7 +304,7 @@ else:
 
     if arquivos and st.button(f"Gerar {tipo_conteudo}", use_container_width=True):
         if verificar_seguranca(arquivos):
-            with st.spinner("A otimizar imagens e a gerar conteúdo..."):
+            with st.spinner("A otimizar ficheiros/imagens e a gerar conteúdo..."):
                 try:
                     txt = "".join([processar_arquivo(a)+"\n" for a in arquivos])
                     dados = gerar_dados_ia(txt, q_itens, tipo_conteudo)
