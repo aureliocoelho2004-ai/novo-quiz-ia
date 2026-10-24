@@ -20,24 +20,20 @@ import os
 st.set_page_config(page_title="Quizify", layout="centered")
 
 def obter_segredo(chave):
-    # 1. Tenta ler das variáveis do Render
     if chave in os.environ:
         return os.environ[chave]
-    # 2. Se não encontrar, tenta ler do Streamlit (para uso local)
     try:
         return st.secrets[chave]
     except Exception:
-        # Se falhar tudo, avisa EXATAMENTE qual chave falta!
         raise ValueError(f"Falta configurar a variável '{chave}' na aba Environment do Render.")
 
 try:
-    # 1. Configurar Gemini
+    # Configurar Gemini
     GEMINI_API_KEY = obter_segredo("GEMINI_API_KEY")
     genai.configure(api_key=GEMINI_API_KEY)
-    # Modelo corrigido para a versão oficial mais recente e rápida
     modelo = genai.GenerativeModel("gemini-1.5-flash")
     
-    # 2. Configurar Firebase
+    # Configurar Firebase
     if not firebase_admin._apps:
         chave_json = obter_segredo("FIREBASE_KEY")
         cert_dict = json.loads(chave_json)
@@ -74,7 +70,7 @@ esconder_menu = """
     footer {visibility: hidden;}
     header {visibility: hidden;}
     </style>
-    """
+"""
 st.markdown(esconder_menu, unsafe_allow_html=True)
 
 USUARIOS_AUTORIZADOS = {"admin": "admin123", "escola_demo": "quiz2026", "professor": "aula123"}
@@ -140,20 +136,27 @@ def verificar_seguranca(arquivos):
 # ==========================================
 # LEITURA DOS FICHEIROS
 # ==========================================
-def extrair_texto_pdf(a): a.seek(0); return "".join([p.extract_text()+"\n" for p in PyPDF2.PdfReader(a).pages if p.extract_text()])
-def extrair_texto_docx(a): a.seek(0); return "\n".join([p.text for p in docx.Document(a).paragraphs if p.text.strip()])
+def extrair_texto_pdf(a): 
+    a.seek(0)
+    return "".join([p.extract_text()+"\n" for p in PyPDF2.PdfReader(a).pages if p.extract_text()])
+
+def extrair_texto_docx(a): 
+    a.seek(0)
+    return "\n".join([p.text for p in docx.Document(a).paragraphs if p.text.strip()])
+
 def extrair_texto_pptx(a):
-    a.seek(0); t=[]
+    a.seek(0)
+    t = []
     for s in pptx.Presentation(a).slides:
         for sh in s.shapes:
-            if sh.has_text_frame: t.extend([p.text.strip() for p in sh.text_frame.paragraphs if p.text.strip()])
+            if sh.has_text_frame: 
+                t.extend([p.text.strip() for p in sh.text_frame.paragraphs if p.text.strip()])
     return "\n".join(t)
 
 def extrair_texto_imagem(a):
     a.seek(0)
     img = Image.open(a)
     try:
-        # Usar a visão nativa do Gemini para ler a imagem
         resposta_visao = modelo.generate_content([
             "Transcreve todo o texto visível nesta imagem. Se tiver esquemas ou tópicos, organiza-os em texto claro.", 
             img
@@ -242,70 +245,4 @@ def obter_html_flashcards(json_dados, titulo, professor):
     </div>
     <script>
         const cards = [[JSON_DADOS]]; let indice = 0; document.getElementById('total').innerText = cards.length;
-        function carregar() { document.getElementById('card').classList.remove('flipped'); setTimeout(() => { document.getElementById('frente').innerText = cards[indice].frente; document.getElementById('verso').innerText = cards[indice].verso; document.getElementById('contador').innerText = indice + 1; }, 150); }
-        function virarCard() { document.getElementById('card').classList.toggle('flipped'); }
-        function mudar(dir) { if (indice + dir >= 0 && indice + dir < cards.length) { indice += dir; carregar(); } }
-        carregar();
-    </script>
-</body></html>"""
-    return html_export.replace("[[TITULO]]", t_seg).replace("[[PROFESSOR]]", p_seg).replace("[[JSON_DADOS]]", j_str)
-
-# ==========================================
-# INTERFACE PRINCIPAL DO STREAMLIT
-# ==========================================
-if not st.session_state["autenticado"]:
-    tela_login()
-else:
-    with st.sidebar:
-        st.write(f"Utilizador: **{st.session_state['usuario_atual']}**")
-        if st.button("Sair", use_container_width=True): logout()
-
-    st.title("🎲 Quizify")
-    st.subheader("Criar Conteúdo Interativo")
-    
-    tipo_conteudo = st.radio("O que deseja criar?", ["Quiz", "Flashcards"], horizontal=True)
-    t_titulo = st.text_input("Título", value="Desafio de Conhecimento")
-    n_prof = st.text_input("Professor(a)", placeholder="Ex: Maria")
-    q_itens = st.number_input("Quantidade (Perguntas/Cartões)", min_value=1, max_value=50, value=5)
-    arquivos = st.file_uploader("Ficheiros", type=["pdf", "docx", "pptx", "png", "jpg", "jpeg"], accept_multiple_files=True)
-
-    if arquivos and st.button(f"✨ Gerar {tipo_conteudo}", use_container_width=True):
-        if verificar_seguranca(arquivos):
-            with st.spinner(f"A gerar {tipo_conteudo.lower()} e a publicar na nuvem..."):
-                try:
-                    txt = "".join([processar_arquivo(a)+"\n" for a in arquivos])
-                    dados = gerar_dados_ia(txt, q_itens, tipo_conteudo)
-                    
-                    if tipo_conteudo == "Quiz":
-                        html_final = obter_html_jogo(dados, t_titulo, n_prof)
-                        prefixo = "quiz"
-                    else:
-                        html_final = obter_html_flashcards(dados, t_titulo, n_prof)
-                        prefixo = "flashcard"
-                    
-                    st.session_state["conteudo_pronto"] = html_final
-                    st.session_state["link_conteudo"] = fazer_upload_firebase(html_final, prefixo)
-                    st.session_state["ultimo_uso"] = time.time()
-                    st.session_state["geracoes_nesta_sessao"] += 1
-                    
-                    st.success(f"✅ {tipo_conteudo} publicado com sucesso!")
-                except Exception as e:
-                    st.error(f"Erro ao gerar conteúdo: {e}")
-
-    if st.session_state.get("conteudo_pronto"):
-        st.markdown("---")
-        
-        # Link da Nuvem para WhatsApp
-        if st.session_state.get("link_conteudo"):
-            st.info("📱 **LINK PARA ALUNOS (Funciona em iOS e Android):**")
-            st.code(st.session_state["link_conteudo"], language="text")
-            st.write("Copie o link acima e envie no WhatsApp. Os alunos não precisam de descarregar nada!")
-
-        # Botão de Download Clássico (MOVIDO PARA CIMA)
-        nome_seg = re.sub(r'[^\w\s-]', '', t_titulo).strip().replace(' ', '_') or "conteudo"
-        st.download_button("📥 Descarregar Ficheiro HTML (Android/PC)", st.session_state["conteudo_pronto"], f"{nome_seg}.html", "text/html", use_container_width=True)
-
-        st.markdown("---")
-        
-        # Tela de Pré-visualização (O jogo aparece por último)
-        components.html(st.session_state["conteudo_pronto"], height=750, scrolling=True)
+        function carregar() { document.getElementById('card').classList.remove('flipped'); setTimeout(() => { document.getElementById('frente
