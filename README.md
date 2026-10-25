@@ -25,6 +25,7 @@ static/js/main.js       # upload, compressão de imagens no navegador, download 
 | `FIREBASE_BUCKET` | Nome do bucket, ex.: `meu-projeto.appspot.com` |
 | `SECRET_KEY` | Texto longo e aleatório para assinar as sessões de login (ex.: `python -c "import secrets; print(secrets.token_hex(32))"`) |
 | `LIMITE_DIARIO` | (opcional) conteúdos por utilizador por dia; padrão 50 (admins não têm limite) |
+| `LIMITE_TESTE` | (opcional) conteúdos por dia em contas de teste; padrão 10 |
 | `INTERVALO_SEGUNDOS` | (opcional) espera mínima entre gerações; padrão 30 |
 | `ADMIN_USER` / `ADMIN_PASSWORD` | (opcional) cria o primeiro admin quando ainda não existe `usuarios.json` no Firebase |
 
@@ -33,6 +34,7 @@ static/js/main.js       # upload, compressão de imagens no navegador, download 
 - Utilizadores ficam em `usuarios.json` no Firebase, com senhas em hash (nunca em texto puro).
 - Contas do formato antigo (Streamlit) continuam a funcionar e são obrigadas a trocar a senha no primeiro acesso.
 - O admin gere utilizadores em `/admin` (criar, redefinir senha, remover). Senhas definidas pelo admin são provisórias.
+- Contas de teste (24 h, 3 dias ou 7 dias) são criadas em `/admin`, entram direto com a senha definida, nunca são admin e expiram sozinhas; o admin pode prolongar +24 h.
 - Após 5 tentativas erradas, o login fica bloqueado por 10 minutos para aquele IP.
 
 ## Render
