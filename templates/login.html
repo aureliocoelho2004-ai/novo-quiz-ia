@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block titulo %}Entrar - Quizify{% endblock %}
+{% block conteudo %}
+<form method="post" class="space-y-4">
+    <h2 class="text-xl font-bold text-center">🔐 Acesso restrito</h2>
+    <div>
+        <label for="usuario" class="block text-sm font-medium mb-2 text-slate-300">Utilizador</label>
+        <input id="usuario" name="usuario" value="{{ usuario or '' }}" required autofocus autocomplete="username" autocapitalize="none"
+               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+    </div>
+    <div>
+        <label for="senha" class="block text-sm font-medium mb-2 text-slate-300">Senha</label>
+        <input id="senha" name="senha" type="password" required autocomplete="current-password"
+               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+    </div>
+    <button class="w-full bg-red-500 hover:bg-red-600 font-bold py-3 rounded-xl transition shadow-lg shadow-red-500/30">Entrar</button>
+</form>
+{% endblock %}

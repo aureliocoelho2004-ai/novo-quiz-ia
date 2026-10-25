@@ -2,16 +2,21 @@
 
 Toda a lógica fica aqui; o HTML vive em templates/ e o JS/CSS da página em static/.
 """
+import hashlib
 import io
 import json
 import logging
 import os
 import re
 import unicodedata
+import time
 import uuid
+from functools import wraps
 
-from flask import Flask, jsonify, render_template, request
+from flask import (Flask, abort, flash, jsonify, redirect, render_template, request,
+                   session, url_for)
 from werkzeug.exceptions import RequestEntityTooLarge
+from werkzeug.security import check_password_hash, generate_password_hash
 
 log = logging.getLogger("quizify")
 logging.basicConfig(level=logging.INFO)
@@ -28,6 +33,28 @@ MIME_IMG = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
 app = Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = MAX_TOTAL_MB * 1024 * 1024
 app.json.ensure_ascii = False
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=bool(os.environ.get("RENDER")),  # Render serve sempre por HTTPS
+    PERMANENT_SESSION_LIFETIME=60 * 60 * 24 * 7,
+)
+
+
+def _chave_secreta():
+    if os.environ.get("SECRET_KEY"):
+        return os.environ["SECRET_KEY"]
+    # Sem SECRET_KEY, deriva uma chave estável de um segredo existente para que
+    # todos os workers do gunicorn aceitem a mesma sessão.
+    base = os.environ.get("FIREBASE_KEY") or os.environ.get("GEMINI_API_KEY")
+    if base:
+        log.warning("SECRET_KEY não definida; usando chave derivada. Defina SECRET_KEY no Render.")
+        return hashlib.sha256(("quizify-sessao:" + base).encode()).hexdigest()
+    log.warning("SECRET_KEY não definida; sessões serão perdidas ao reiniciar.")
+    return os.urandom(32).hex()
+
+
+app.secret_key = _chave_secreta()
 
 
 # --------------------------------------------------------------------------- #
@@ -63,6 +90,80 @@ def bucket_firebase():
             firebase_admin.initialize_app(cred, {"storageBucket": obter_segredo("FIREBASE_BUCKET")})
         _bucket = storage.bucket()
     return _bucket
+
+
+# --------------------------------------------------------------------------- #
+# Utilizadores e autenticação
+# Guardados em usuarios.json no Firebase, com senhas em hash:
+#   {"nome": {"senha": "<hash>", "admin": bool, "trocar_senha": bool}}
+# --------------------------------------------------------------------------- #
+ARQUIVO_USUARIOS = "usuarios.json"
+MAX_TENTATIVAS, JANELA_TENTATIVAS = 5, 10 * 60
+_tentativas = {}
+
+
+def carregar_usuarios():
+    try:
+        blob = bucket_firebase().blob(ARQUIVO_USUARIOS)
+        dados = json.loads(blob.download_as_bytes()) if blob.exists() else {}
+    except Exception:
+        log.exception("Falha ao ler utilizadores do Firebase")
+        dados = {}
+
+    usuarios = {}
+    for nome, valor in dados.items():
+        if isinstance(valor, str):  # formato antigo (Streamlit): senha em texto puro
+            valor = {"senha": generate_password_hash(valor), "admin": nome == "admin", "trocar_senha": True}
+        usuarios[nome] = valor
+
+    # Primeiro acesso: cria o admin a partir das variáveis de ambiente.
+    if not usuarios and os.environ.get("ADMIN_PASSWORD"):
+        nome = os.environ.get("ADMIN_USER", "admin").strip().lower()
+        usuarios[nome] = {"senha": generate_password_hash(os.environ["ADMIN_PASSWORD"]),
+                          "admin": True, "trocar_senha": False}
+    return usuarios
+
+
+def salvar_usuarios(usuarios):
+    bucket_firebase().blob(ARQUIVO_USUARIOS).upload_from_string(
+        json.dumps(usuarios, ensure_ascii=False), content_type="application/json")
+
+
+def ip_cliente():
+    return (request.headers.get("X-Forwarded-For") or request.remote_addr or "").split(",")[0].strip()
+
+
+def bloqueado(ip):
+    agora = time.time()
+    _tentativas[ip] = [t for t in _tentativas.get(ip, []) if agora - t < JANELA_TENTATIVAS]
+    return len(_tentativas[ip]) >= MAX_TENTATIVAS
+
+
+def senha_valida(senha):
+    return len(senha) >= 8
+
+
+def login_obrigatorio(view):
+    @wraps(view)
+    def envolvida(*args, **kwargs):
+        if not session.get("usuario"):
+            if request.path.startswith("/api/"):
+                return jsonify(erro="Sessão expirada. Entre novamente."), 401
+            return redirect(url_for("login", proximo=request.path))
+        if session.get("trocar_senha") and request.endpoint not in ("trocar_senha", "logout"):
+            return redirect(url_for("trocar_senha"))
+        return view(*args, **kwargs)
+    return envolvida
+
+
+def admin_obrigatorio(view):
+    @wraps(view)
+    @login_obrigatorio
+    def envolvida(*args, **kwargs):
+        if not session.get("admin"):
+            abort(403)
+        return view(*args, **kwargs)
+    return envolvida
 
 
 # --------------------------------------------------------------------------- #
@@ -222,7 +323,114 @@ def publicar_firebase(conteudo_html, prefixo):
 # --------------------------------------------------------------------------- #
 # Rotas
 # --------------------------------------------------------------------------- #
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "GET":
+        return render_template("login.html")
+
+    ip = ip_cliente()
+    if bloqueado(ip):
+        flash("Muitas tentativas. Aguarde alguns minutos e tente novamente.", "erro")
+        return render_template("login.html"), 429
+
+    nome = request.form.get("usuario", "").strip().lower()
+    senha = request.form.get("senha", "")
+    usuarios = carregar_usuarios()
+    conta = usuarios.get(nome)
+    if not conta or not check_password_hash(conta["senha"], senha):
+        _tentativas[ip].append(time.time())
+        flash("Utilizador ou senha incorretos.", "erro")
+        return render_template("login.html", usuario=nome), 401
+
+    _tentativas.pop(ip, None)
+    session.clear()
+    session.permanent = True
+    session.update(usuario=nome, admin=bool(conta.get("admin")), trocar_senha=bool(conta.get("trocar_senha")))
+    proximo = request.args.get("proximo", "")
+    return redirect(proximo if proximo.startswith("/") and not proximo.startswith("//") else url_for("index"))
+
+
+@app.post("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
+
+
+@app.route("/trocar-senha", methods=["GET", "POST"])
+@login_obrigatorio
+def trocar_senha():
+    if request.method == "POST":
+        usuarios = carregar_usuarios()
+        conta = usuarios.get(session["usuario"])
+        atual, nova = request.form.get("atual", ""), request.form.get("nova", "")
+        if not conta or not check_password_hash(conta["senha"], atual):
+            flash("Senha atual incorreta.", "erro")
+        elif not senha_valida(nova):
+            flash("A nova senha deve ter pelo menos 8 caracteres.", "erro")
+        elif nova != request.form.get("confirmar", ""):
+            flash("A confirmação não coincide com a nova senha.", "erro")
+        elif nova == atual:
+            flash("A nova senha deve ser diferente da atual.", "erro")
+        else:
+            conta.update(senha=generate_password_hash(nova), trocar_senha=False)
+            try:
+                salvar_usuarios(usuarios)
+            except Exception:
+                log.exception("Falha ao guardar utilizadores")
+                flash("Não foi possível guardar a senha. Tente novamente.", "erro")
+            else:
+                session["trocar_senha"] = False
+                flash("Senha alterada com sucesso.", "ok")
+                return redirect(url_for("index"))
+    return render_template("trocar_senha.html", obrigatorio=session.get("trocar_senha"))
+
+
+@app.route("/admin", methods=["GET", "POST"])
+@admin_obrigatorio
+def admin():
+    usuarios = carregar_usuarios()
+    if request.method == "POST":
+        acao = request.form.get("acao")
+        nome = request.form.get("usuario", "").strip().lower()
+        senha = request.form.get("senha", "")
+        if acao == "criar":
+            if not re.fullmatch(r"[a-z0-9._-]{3,30}", nome):
+                flash("Nome inválido: use 3 a 30 letras minúsculas, números, ponto, hífen ou _.", "erro")
+            elif nome in usuarios:
+                flash(f"O utilizador '{nome}' já existe.", "erro")
+            elif not senha_valida(senha):
+                flash("A senha deve ter pelo menos 8 caracteres.", "erro")
+            else:
+                usuarios[nome] = {"senha": generate_password_hash(senha),
+                                  "admin": request.form.get("admin") == "1", "trocar_senha": True}
+                flash(f"Utilizador '{nome}' criado. Ele terá de trocar a senha no primeiro acesso.", "ok")
+        elif acao == "redefinir" and nome in usuarios:
+            if not senha_valida(senha):
+                flash("A senha deve ter pelo menos 8 caracteres.", "erro")
+            else:
+                usuarios[nome].update(senha=generate_password_hash(senha), trocar_senha=True)
+                flash(f"Senha de '{nome}' redefinida.", "ok")
+        elif acao == "remover" and nome in usuarios:
+            if nome == session["usuario"]:
+                flash("Não pode remover a sua própria conta.", "erro")
+            else:
+                del usuarios[nome]
+                flash(f"Utilizador '{nome}' removido.", "ok")
+        else:
+            abort(400)
+
+        try:
+            salvar_usuarios(usuarios)
+        except Exception:
+            log.exception("Falha ao guardar utilizadores")
+            flash("Não foi possível guardar as alterações no Firebase.", "erro")
+        return redirect(url_for("admin"))
+
+    return render_template("admin.html", usuarios=sorted(usuarios.items()))
+
+
 @app.get("/")
+@login_obrigatorio
 def index():
     return render_template("index.html", max_arquivos=MAX_ARQUIVOS, max_mb=MAX_TOTAL_MB,
                            min_itens=MIN_ITENS, max_itens=MAX_ITENS)
@@ -235,6 +443,7 @@ def health():
 
 
 @app.post("/api/gerar")
+@login_obrigatorio
 def gerar():
     arquivos = [a for a in request.files.getlist("arquivos") if a and a.filename]
     tipo = request.form.get("tipo", "quiz")

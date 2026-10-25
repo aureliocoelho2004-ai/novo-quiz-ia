@@ -7,7 +7,9 @@ O resultado é um HTML autônomo publicado no Firebase (link para Android, iOS e
 
 ```
 app.py                  # Flask: rotas, extração de texto, Gemini, Firebase (só Python)
-templates/index.html    # página principal (Tailwind)
+templates/base.html     # layout comum (Tailwind)
+templates/index.html    # página principal
+templates/login.html, trocar_senha.html, admin.html
 templates/quiz.html     # quiz gerado — autônomo, sem CDN, funciona offline
 templates/flashcards.html
 static/js/main.js       # upload, compressão de imagens no navegador, download do HTML
@@ -21,6 +23,15 @@ static/js/main.js       # upload, compressão de imagens no navegador, download 
 | `GEMINI_MODEL` | (opcional) modelo; padrão `gemini-3.8-flash` |
 | `FIREBASE_KEY` | JSON da conta de serviço do Firebase (conteúdo inteiro, numa linha) |
 | `FIREBASE_BUCKET` | Nome do bucket, ex.: `meu-projeto.appspot.com` |
+| `SECRET_KEY` | Texto longo e aleatório para assinar as sessões de login (ex.: `python -c "import secrets; print(secrets.token_hex(32))"`) |
+| `ADMIN_USER` / `ADMIN_PASSWORD` | (opcional) cria o primeiro admin quando ainda não existe `usuarios.json` no Firebase |
+
+## Login
+
+- Utilizadores ficam em `usuarios.json` no Firebase, com senhas em hash (nunca em texto puro).
+- Contas do formato antigo (Streamlit) continuam a funcionar e são obrigadas a trocar a senha no primeiro acesso.
+- O admin gere utilizadores em `/admin` (criar, redefinir senha, remover). Senhas definidas pelo admin são provisórias.
+- Após 5 tentativas erradas, o login fica bloqueado por 10 minutos para aquele IP.
 
 ## Render
 

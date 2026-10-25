@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block titulo %}Admin - Quizify{% endblock %}
+{% block conteudo %}
+<section class="space-y-6">
+    <h2 class="text-xl font-bold text-center">👑 Painel do administrador</h2>
+
+    <form method="post" class="space-y-3 bg-slate-900 p-4 rounded-xl border border-slate-700">
+        <h3 class="font-semibold">Novo utilizador</h3>
+        <input type="hidden" name="acao" value="criar">
+        <input name="usuario" required placeholder="nome (ex.: prof.ana)" pattern="[a-z0-9._\-]{3,30}" autocapitalize="none"
+               title="3 a 30 letras minúsculas, números, ponto, hífen ou _"
+               class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+        <input name="senha" type="password" required minlength="8" placeholder="senha provisória (mín. 8)" autocomplete="new-password"
+               class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+        <label class="flex items-center gap-2 text-sm text-slate-300">
+            <input type="checkbox" name="admin" value="1" class="accent-red-500"> Administrador
+        </label>
+        <button class="w-full bg-red-500 hover:bg-red-600 font-bold py-2.5 rounded-xl transition">Adicionar utilizador</button>
+    </form>
+
+    <div class="space-y-2">
+        <h3 class="font-semibold">Utilizadores ({{ usuarios | length }})</h3>
+        {% for nome, conta in usuarios %}
+        <details class="bg-slate-900 rounded-xl border border-slate-700">
+            <summary class="cursor-pointer p-3 flex justify-between items-center">
+                <span>{{ nome }}</span>
+                <span class="text-xs text-slate-400">
+                    {% if conta.admin %}👑 admin{% endif %}
+                    {% if conta.trocar_senha %}· senha provisória{% endif %}
+                </span>
+            </summary>
+            <div class="p-3 pt-0 space-y-2">
+                <form method="post" class="flex gap-2">
+                    <input type="hidden" name="acao" value="redefinir">
+                    <input type="hidden" name="usuario" value="{{ nome }}">
+                    <input name="senha" type="password" required minlength="8" placeholder="nova senha provisória" autocomplete="new-password"
+                           class="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-2 text-sm text-white">
+                    <button class="bg-blue-600 hover:bg-blue-700 px-3 rounded-xl text-sm font-semibold">Redefinir</button>
+                </form>
+                {% if nome != session.usuario %}
+                <form method="post" onsubmit='return confirm({{ ("Remover o utilizador " ~ nome ~ "?") | tojson }})'>
+                    <input type="hidden" name="acao" value="remover">
+                    <input type="hidden" name="usuario" value="{{ nome }}">
+                    <button class="w-full bg-red-900 hover:bg-red-800 py-2 rounded-xl text-sm font-semibold">Remover utilizador</button>
+                </form>
+                {% endif %}
+            </div>
+        </details>
+        {% endfor %}
+    </div>
+</section>
+{% endblock %}

@@ -78,6 +78,10 @@
 
             mostrarStatus('🤖 A IA está lendo o material e criando o conteúdo... (pode levar até 1 minuto)');
             const resposta = await fetch('/api/gerar', { method: 'POST', body: dados });
+            if (resposta.status === 401) {
+                window.location.href = '/login';
+                return;
+            }
             const json = await resposta.json().catch(() => ({}));
             if (!resposta.ok) throw new Error(json.erro || `Erro no servidor (${resposta.status}).`);
 

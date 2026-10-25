@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block titulo %}Quizify - Gerador de Quizzes e Flashcards com IA{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-between p-4">
+
+    <main class="w-full max-w-md bg-slate-800 rounded-2xl shadow-xl p-6 border border-slate-700">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl font-extrabold text-red-500 tracking-wide"><a href="{{ url_for('index') }}">🎲 Quizify</a></h1>
+            <p class="text-sm text-slate-400 mt-1">Transforme documentos em quizzes e flashcards interativos com IA</p>
+            {% if session.usuario %}
+            <nav class="flex justify-center items-center gap-3 mt-3 text-xs text-slate-400">
+                <span>👤 {{ session.usuario }}</span>
+                {% if session.admin %}<a href="{{ url_for('admin') }}" class="hover:text-white underline">Admin</a>{% endif %}
+                <a href="{{ url_for('trocar_senha') }}" class="hover:text-white underline">Senha</a>
+                <form method="post" action="{{ url_for('logout') }}" class="inline">
+                    <button class="hover:text-white underline">Sair</button>
+                </form>
+            </nav>
+            {% endif %}
+        </header>
+
+        {% with mensagens = get_flashed_messages(with_categories=true) %}
+        {% for categoria, texto in mensagens %}
+        <p class="mb-4 text-sm rounded-xl p-3 {{ 'bg-red-900/60 text-red-200' if categoria == 'erro' else 'bg-green-900/60 text-green-200' }}">{{ texto }}</p>
+        {% endfor %}
+        {% endwith %}
+
+        {% block conteudo %}{% endblock %}
+    </main>
+
+    <footer class="text-xs text-slate-500 mt-6">
+        Quizify &copy; 2026 - Todos os direitos reservados.
+    </footer>
+    {% block scripts %}{% endblock %}
+</body>
+</html>
