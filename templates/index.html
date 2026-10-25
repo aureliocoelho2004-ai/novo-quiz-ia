@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block conteudo %}
+<!-- Formulário -->
+<form id="form-gerar" class="space-y-4"
+      data-max-arquivos="{{ max_arquivos }}" data-max-mb="{{ max_mb }}">
+    <div class="grid grid-cols-2 gap-2" role="radiogroup">
+        <label class="cursor-pointer">
+            <input type="radio" name="tipo" value="quiz" class="peer sr-only" checked>
+            <span class="block text-center py-2 rounded-xl border border-slate-700 peer-checked:bg-red-500 peer-checked:border-red-500 font-semibold">📝 Quiz</span>
+        </label>
+        <label class="cursor-pointer">
+            <input type="radio" name="tipo" value="flashcards" class="peer sr-only">
+            <span class="block text-center py-2 rounded-xl border border-slate-700 peer-checked:bg-red-500 peer-checked:border-red-500 font-semibold">🃏 Flashcards</span>
+        </label>
+    </div>
+
+    <div>
+        <label for="titulo" class="block text-sm font-medium mb-2 text-slate-300">Título</label>
+        <input id="titulo" name="titulo" type="text" maxlength="120" value="Desafio de Conhecimento"
+               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+    </div>
+
+    <div>
+        <label for="professor" class="block text-sm font-medium mb-2 text-slate-300">Professor(a) / Responsável (opcional)</label>
+        <input id="professor" name="professor" type="text" maxlength="80"
+               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+    </div>
+
+    <div>
+        <label for="arquivos" class="block text-sm font-medium mb-2 text-slate-300">
+            Arquivos ou fotos (PDF, Word, PowerPoint, imagens — máx. {{ max_arquivos }})
+        </label>
+        <input type="file" id="arquivos" multiple accept=".pdf,.docx,.pptx,image/*"
+               class="w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-red-500 file:text-white hover:file:bg-red-600 cursor-pointer">
+        <p id="contador-arquivos" class="text-xs text-slate-400 mt-2">Nenhum arquivo selecionado (0/{{ max_arquivos }})</p>
+    </div>
+
+    <div>
+        <label for="quantidade" class="block text-sm font-medium mb-2 text-slate-300">Quantidade ({{ min_itens }} a {{ max_itens }})</label>
+        <input id="quantidade" name="quantidade" type="number" min="{{ min_itens }}" max="{{ max_itens }}" value="10" required
+               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+    </div>
+
+    <button id="btn-gerar" type="submit"
+            class="w-full bg-red-500 hover:bg-red-600 disabled:opacity-60 disabled:cursor-wait font-bold py-3 rounded-xl transition duration-200 shadow-lg shadow-red-500/30">
+        Gerar com IA 🚀
+    </button>
+    <p id="status" class="text-sm text-center min-h-[1.25rem]" aria-live="polite"></p>
+</form>
+
+<!-- Resultado -->
+<section id="resultado" class="hidden space-y-3">
+    <h2 class="text-xl font-bold text-green-400 text-center">Pronto! ✅</h2>
+    <p id="resumo" class="text-sm text-slate-300 text-center"></p>
+
+    <div id="bloco-link" class="hidden space-y-2">
+        <p class="text-xs text-slate-400">📱 Link para Android, iOS e computador:</p>
+        <div class="flex gap-2">
+            <input id="link" readonly class="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-slate-200">
+            <button id="btn-copiar" type="button" class="bg-slate-700 hover:bg-slate-600 px-3 rounded-xl text-sm font-semibold">Copiar</button>
+        </div>
+        <a id="btn-abrir" target="_blank" rel="noopener" class="block text-center bg-blue-600 hover:bg-blue-700 font-bold py-3 rounded-xl transition">Abrir link 🔗</a>
+    </div>
+    <p id="aviso-link" class="hidden text-xs text-amber-400 text-center">Não foi possível gerar o link agora, mas pode baixar o arquivo abaixo.</p>
+
+    <button id="btn-baixar" type="button" class="w-full bg-emerald-600 hover:bg-emerald-700 font-bold py-3 rounded-xl transition">
+        Baixar HTML (usar offline) 📥
+    </button>
+    <button id="btn-novo" type="button" class="w-full bg-slate-700 hover:bg-slate-600 font-bold py-3 rounded-xl transition">
+        Criar outro ✨
+    </button>
+
+    <iframe id="preview" title="Pré-visualização" class="w-full h-[640px] rounded-xl border border-slate-700 bg-slate-900" sandbox="allow-scripts"></iframe>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ titulo }}</title>
+{#- Arquivo 100% autônomo: sem CDN, para funcionar offline depois de baixado. #}
+<style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px;
+           background: #0f172a; color: #f1f5f9; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .card { width: 100%; max-width: 480px; background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 24px; text-align: center; }
+    h1 { margin: 0 0 4px; font-size: 1.5rem; color: #818cf8; }
+    .prof { margin: 0 0 16px; padding-bottom: 16px; border-bottom: 1px solid #334155; color: #94a3b8; font-size: .875rem; }
+    .contador { color: #94a3b8; font-size: .875rem; margin-bottom: 8px; }
+    .cena { perspective: 1000px; height: 260px; margin-bottom: 20px; cursor: pointer; }
+    .giro { position: relative; width: 100%; height: 100%; transition: transform .6s; transform-style: preserve-3d; }
+    .cena.virado .giro { transform: rotateY(180deg); }
+    .face { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 24px;
+            border-radius: 16px; backface-visibility: hidden; -webkit-backface-visibility: hidden; overflow-y: auto; }
+    .frente { background: #334155; border: 2px solid #475569; font-size: 1.2rem; font-weight: 700; }
+    .verso { background: #4f46e5; transform: rotateY(180deg); font-size: 1.05rem; line-height: 1.45; }
+    .dica { color: #64748b; font-size: .75rem; margin: -12px 0 16px; }
+    .nav { display: flex; gap: 12px; }
+    button { flex: 1; font: inherit; font-weight: 700; color: #fff; border: 0; border-radius: 12px; padding: 13px; cursor: pointer; background: #334155; }
+    button.prim { background: #4f46e5; }
+    button:disabled { opacity: .4; cursor: default; }
+</style>
+</head>
+<body>
+<main class="card">
+    <h1>{{ titulo }}</h1>
+    {% if professor %}<p class="prof">Prof. {{ professor }}</p>{% else %}<p class="prof">Quizify</p>{% endif %}
+    <p class="contador">Cartão <span id="atual">1</span> de <span id="total"></span></p>
+    <div id="cena" class="cena" role="button" tabindex="0" aria-label="Virar cartão">
+        <div class="giro">
+            <div class="face frente" id="frente"></div>
+            <div class="face verso" id="verso"></div>
+        </div>
+    </div>
+    <p class="dica">Toque no cartão para virar</p>
+    <div class="nav">
+        <button id="btn-ant">◀ Anterior</button>
+        <button id="btn-prox" class="prim">Próximo ▶</button>
+    </div>
+</main>
+<script>
+const CARTOES = {{ itens | tojson }};
+const $ = (id) => document.getElementById(id);
+let indice = 0;
+
+function mostrar() {
+    $('cena').classList.remove('virado');
+    // espera o cartão desvirar para não revelar o verso do próximo
+    setTimeout(() => {
+        $('frente').textContent = CARTOES[indice].frente;
+        $('verso').textContent = CARTOES[indice].verso;
+    }, 150);
+    $('atual').textContent = indice + 1;
+    $('btn-ant').disabled = indice === 0;
+    $('btn-prox').disabled = indice === CARTOES.length - 1;
+}
+
+function virar() { $('cena').classList.toggle('virado'); }
+$('cena').onclick = virar;
+$('cena').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); virar(); } };
+$('btn-ant').onclick = () => { if (indice > 0) { indice--; mostrar(); } };
+$('btn-prox').onclick = () => { if (indice < CARTOES.length - 1) { indice++; mostrar(); } };
+
+$('total').textContent = CARTOES.length;
+mostrar();
+</script>
+</body>
+</html>
