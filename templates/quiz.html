@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ titulo }}</title>
+{#- Arquivo 100% autônomo: sem CDN, para funcionar offline depois de baixado. #}
+<style>
+    * { box-sizing: border-box; }
+    body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px;
+           background: #0f172a; color: #f1f5f9; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .card { width: 100%; max-width: 480px; background: #1e293b; border: 1px solid #334155; border-radius: 16px; padding: 24px; }
+    h1 { margin: 0 0 4px; font-size: 1.5rem; text-align: center; color: #818cf8; }
+    .prof { margin: 0 0 16px; padding-bottom: 16px; border-bottom: 1px solid #334155; text-align: center; color: #94a3b8; font-size: .875rem; }
+    .topo { display: flex; justify-content: space-between; font-size: .8rem; color: #94a3b8; margin-bottom: 8px; }
+    .barra { height: 6px; background: #334155; border-radius: 99px; overflow: hidden; margin-bottom: 16px; }
+    .barra div { height: 100%; width: 0; background: #818cf8; transition: width .3s; }
+    .pergunta { font-size: 1.15rem; font-weight: 700; margin: 0 0 16px; line-height: 1.4; }
+    .opcoes { display: flex; flex-direction: column; gap: 10px; }
+    button { font: inherit; cursor: pointer; border: 0; border-radius: 12px; }
+    .opcao { width: 100%; text-align: left; padding: 12px 16px; background: #334155; color: #fff; border: 2px solid #475569; font-weight: 600; }
+    .opcao:hover:not(:disabled) { border-color: #818cf8; }
+    .opcao:disabled { cursor: default; opacity: .75; }
+    .opcao.correta { background: #16a34a; border-color: #22c55e; opacity: 1; }
+    .opcao.errada { background: #dc2626; border-color: #ef4444; opacity: 1; }
+    .feedback { margin-top: 16px; padding: 16px; border-radius: 12px; }
+    .feedback.ok { background: #14532d; } .feedback.nok { background: #7f1d1d; }
+    .feedback h3 { margin: 0 0 6px; } .feedback p { margin: 0; font-size: .9rem; line-height: 1.4; }
+    .btn { display: block; width: 100%; margin-top: 12px; padding: 13px; font-weight: 700; color: #fff; background: #4f46e5; }
+    .btn.ambar { background: #d97706; } .btn.azul { background: #2563eb; }
+    .oculto { display: none !important; }
+    .resultado { text-align: center; }
+    .resultado .emoji { font-size: 3.5rem; }
+    .resultado .nota { font-size: 2.5rem; font-weight: 800; color: #818cf8; margin: 4px 0; }
+    #confetes { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+</style>
+</head>
+<body>
+<canvas id="confetes"></canvas>
+<main class="card">
+    <h1>{{ titulo }}</h1>
+    {% if professor %}<p class="prof">Prof. {{ professor }}</p>{% else %}<p class="prof">Quizify</p>{% endif %}
+
+    <section id="tela-quiz">
+        <div class="topo"><span id="progresso"></span><span id="placar"></span></div>
+        <div class="barra"><div id="barra"></div></div>
+        <h2 id="pergunta" class="pergunta"></h2>
+        <div id="opcoes" class="opcoes"></div>
+        <div id="feedback" class="feedback oculto">
+            <h3 id="fb-titulo"></h3>
+            <p id="fb-texto"></p>
+            <button id="btn-continuar" class="btn">Continuar ➜</button>
+        </div>
+    </section>
+
+    <section id="tela-resultado" class="resultado oculto">
+        <div id="res-emoji" class="emoji"></div>
+        <h2 id="res-titulo"></h2>
+        <div id="res-nota" class="nota"></div>
+        <p id="res-texto"></p>
+        <button id="btn-erradas" class="btn ambar">Refazer apenas as erradas 🎯</button>
+        <button id="btn-tudo" class="btn azul">Refazer tudo 🔄</button>
+    </section>
+</main>
+
+<script>
+const QUESTOES = {{ itens | tojson }};
+const $ = (id) => document.getElementById(id);
+
+let rodada = [];        // questões da rodada atual
+let indice = 0;
+let acertos = 0;
+let erradas = [];
+let modoRevisao = false;
+
+function iniciar(lista, revisao) {
+    rodada = lista;
+    modoRevisao = revisao;
+    indice = 0;
+    acertos = 0;
+    erradas = [];
+    $('tela-resultado').classList.add('oculto');
+    $('tela-quiz').classList.remove('oculto');
+    mostrarPergunta();
+}
+
+function mostrarPergunta() {
+    const q = rodada[indice];
+    $('progresso').textContent = (modoRevisao ? 'Revisão · ' : '') + `Pergunta ${indice + 1} de ${rodada.length}`;
+    $('placar').textContent = `Acertos: ${acertos}`;
+    $('barra').style.width = `${(indice / rodada.length) * 100}%`;
+    $('pergunta').textContent = q.pergunta;
+    $('feedback').classList.add('oculto');
+
+    const caixa = $('opcoes');
+    caixa.innerHTML = '';
+    q.opcoes.forEach((texto, i) => {
+        const b = document.createElement('button');
+        b.className = 'opcao';
+        b.textContent = texto;
+        b.onclick = () => responder(i);
+        caixa.appendChild(b);
+    });
+}
+
+function responder(escolha) {
+    const q = rodada[indice];
+    const botoes = $('opcoes').children;
+    for (const b of botoes) b.disabled = true;   // evita cliques duplos
+    botoes[q.correta].classList.add('correta');
+
+    const fb = $('feedback');
+    if (escolha === q.correta) {
+        acertos++;
+        fb.className = 'feedback ok';
+        $('fb-titulo').textContent = '✅ Correto!';
+        $('fb-texto').textContent = q.explicacao;
+    } else {
+        botoes[escolha].classList.add('errada');
+        erradas.push(q);
+        fb.className = 'feedback nok';
+        $('fb-titulo').textContent = '❌ Incorreto';
+        $('fb-texto').textContent = `Resposta certa: ${q.opcoes[q.correta]}. ${q.explicacao}`;
+    }
+    $('placar').textContent = `Acertos: ${acertos}`;
+    $('btn-continuar').focus();
+}
+
+$('btn-continuar').onclick = () => {
+    indice++;
+    if (indice < rodada.length) mostrarPergunta();
+    else finalizar();
+};
+
+function finalizar() {
+    $('barra').style.width = '100%';
+    $('tela-quiz').classList.add('oculto');
+    $('tela-resultado').classList.remove('oculto');
+
+    const total = rodada.length;
+    const perc = Math.round((acertos / total) * 100);
+    const perfeito = acertos === total;
+
+    $('res-nota').textContent = `${perc}%`;
+    $('res-texto').textContent = `Você acertou ${acertos} de ${total} ${modoRevisao ? 'questões revisadas' : 'questões'}.`;
+    $('res-emoji').textContent = perfeito ? '🏆' : perc >= 70 ? '👏' : '📚';
+    $('res-titulo').textContent = perfeito ? 'Perfeito! 100% de acertos!' : perc >= 70 ? 'Muito bem!' : 'Continue praticando!';
+    $('btn-erradas').classList.toggle('oculto', erradas.length === 0);
+    $('btn-erradas').textContent = `Refazer apenas as erradas (${erradas.length}) 🎯`;
+
+    // Celebração SOMENTE com 100% de acertos
+    if (perfeito) soltarConfetes();
+}
+
+$('btn-erradas').onclick = () => iniciar([...erradas], true);
+$('btn-tudo').onclick = () => iniciar(QUESTOES, false);
+
+// Confetes leves sem biblioteca externa (funciona offline)
+function soltarConfetes() {
+    const canvas = $('confetes');
+    const ctx = canvas.getContext('2d');
+    canvas.width = innerWidth;
+    canvas.height = innerHeight;
+    const cores = ['#f43f5e', '#facc15', '#22c55e', '#3b82f6', '#a855f7', '#f97316'];
+    const pecas = Array.from({ length: 160 }, () => ({
+        x: canvas.width / 2, y: canvas.height * 0.6,
+        vx: (Math.random() - 0.5) * 16, vy: -Math.random() * 16 - 6,
+        tam: Math.random() * 6 + 4, cor: cores[Math.floor(Math.random() * cores.length)],
+        giro: Math.random() * Math.PI, vgiro: (Math.random() - 0.5) * 0.3,
+    }));
+    const fim = performance.now() + 3500;
+    (function quadro(agora) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        for (const p of pecas) {
+            p.vy += 0.35; p.vx *= 0.99; p.x += p.vx; p.y += p.vy; p.giro += p.vgiro;
+            ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.giro);
+            ctx.fillStyle = p.cor; ctx.fillRect(-p.tam / 2, -p.tam / 4, p.tam, p.tam / 2);
+            ctx.restore();
+        }
+        if (agora < fim) requestAnimationFrame(quadro);
+        else ctx.clearRect(0, 0, canvas.width, canvas.height);
+    })(performance.now());
+}
+
+iniciar(QUESTOES, false);
+</script>
+</body>
+</html>
