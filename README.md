@@ -24,6 +24,8 @@ static/js/main.js       # upload, compressão de imagens no navegador, download 
 | `FIREBASE_KEY` | JSON da conta de serviço do Firebase (conteúdo inteiro, numa linha) |
 | `FIREBASE_BUCKET` | Nome do bucket, ex.: `meu-projeto.appspot.com` |
 | `SECRET_KEY` | Texto longo e aleatório para assinar as sessões de login (ex.: `python -c "import secrets; print(secrets.token_hex(32))"`) |
+| `LIMITE_DIARIO` | (opcional) conteúdos por utilizador por dia; padrão 50 (admins não têm limite) |
+| `INTERVALO_SEGUNDOS` | (opcional) espera mínima entre gerações; padrão 30 |
 | `ADMIN_USER` / `ADMIN_PASSWORD` | (opcional) cria o primeiro admin quando ainda não existe `usuarios.json` no Firebase |
 
 ## Login
