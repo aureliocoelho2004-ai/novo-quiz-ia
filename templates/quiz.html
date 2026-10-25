@@ -32,6 +32,9 @@
     .resultado { text-align: center; }
     .resultado .emoji { font-size: 3.5rem; }
     .resultado .nota { font-size: 2.5rem; font-weight: 800; color: #818cf8; margin: 4px 0; }
+    .dica { margin: -6px 0 14px; text-align: center; color: #ef4444; font-size: 1.25rem; font-weight: 800; font-style: italic;
+            animation: pulsar 1.2s ease-in-out infinite; }
+    @keyframes pulsar { 50% { opacity: .45; } }
     #confetes { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
 </style>
 </head>
@@ -45,6 +48,7 @@
         <div class="topo"><span id="progresso"></span><span id="placar"></span></div>
         <div class="barra"><div id="barra"></div></div>
         <h2 id="pergunta" class="pergunta"></h2>
+        <p id="dica" class="dica">👉 Toque numa opção para responder!</p>
         <div id="opcoes" class="opcoes"></div>
         <div id="feedback" class="feedback oculto">
             <h3 id="fb-titulo"></h3>
@@ -91,6 +95,7 @@ function mostrarPergunta() {
     $('barra').style.width = `${(indice / rodada.length) * 100}%`;
     $('pergunta').textContent = q.pergunta;
     $('feedback').classList.add('oculto');
+    $('dica').classList.remove('oculto');
 
     const caixa = $('opcoes');
     caixa.innerHTML = '';
@@ -107,6 +112,7 @@ function responder(escolha) {
     const q = rodada[indice];
     const botoes = $('opcoes').children;
     for (const b of botoes) b.disabled = true;   // evita cliques duplos
+    $('dica').classList.add('oculto');
     botoes[q.correta].classList.add('correta');
 
     const fb = $('feedback');
@@ -149,7 +155,10 @@ function finalizar() {
     $('btn-erradas').textContent = `Refazer apenas as erradas (${erradas.length}) 🎯`;
 
     // Celebração SOMENTE com 100% de acertos
-    if (perfeito) soltarConfetes();
+    if (perfeito) {
+        soltarConfetes();
+        tocarPalmas();
+    }
 }
 
 $('btn-erradas').onclick = () => iniciar([...erradas], true);
@@ -180,6 +189,45 @@ function soltarConfetes() {
         if (agora < fim) requestAnimationFrame(quadro);
         else ctx.clearRect(0, 0, canvas.width, canvas.height);
     })(performance.now());
+}
+
+// Som de palmas sintetizado com Web Audio (sem arquivo externo, funciona offline).
+// Cada palma é um estalo curto de ruído filtrado; centenas delas soam como aplausos.
+function tocarPalmas() {
+    try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return;
+        const ctx = new Ctx();
+        const ruido = ctx.createBuffer(1, ctx.sampleRate * 0.1, ctx.sampleRate);
+        const dados = ruido.getChannelData(0);
+        for (let i = 0; i < dados.length; i++) dados[i] = Math.random() * 2 - 1;
+
+        const saida = ctx.createGain();
+        saida.connect(ctx.destination);
+        const inicio = ctx.currentTime + 0.05;
+        const duracao = 3.2;
+        saida.gain.setValueAtTime(0.0001, inicio);
+        saida.gain.exponentialRampToValueAtTime(0.9, inicio + 0.4);
+        saida.gain.setValueAtTime(0.9, inicio + duracao - 1.2);
+        saida.gain.exponentialRampToValueAtTime(0.0001, inicio + duracao);
+
+        for (let t = 0; t < duracao; t += Math.random() * 0.018) {
+            const fonte = ctx.createBufferSource();
+            fonte.buffer = ruido;
+            const filtro = ctx.createBiquadFilter();
+            filtro.type = 'bandpass';
+            filtro.frequency.value = 900 + Math.random() * 1800;
+            filtro.Q.value = 1.2;
+            const env = ctx.createGain();
+            const quando = inicio + t;
+            env.gain.setValueAtTime(0.0001, quando);
+            env.gain.exponentialRampToValueAtTime(0.25 + Math.random() * 0.35, quando + 0.002);
+            env.gain.exponentialRampToValueAtTime(0.0001, quando + 0.03 + Math.random() * 0.04);
+            fonte.connect(filtro).connect(env).connect(saida);
+            fonte.start(quando, Math.random() * 0.03, 0.08);
+        }
+        setTimeout(() => ctx.close(), (duracao + 0.5) * 1000);
+    } catch (e) { /* sem som não impede o resultado */ }
 }
 
 iniciar(QUESTOES, false);

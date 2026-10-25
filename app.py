@@ -11,6 +11,7 @@ import re
 import unicodedata
 import time
 import uuid
+from datetime import datetime, timedelta, timezone
 from functools import wraps
 
 from flask import (Flask, abort, flash, jsonify, redirect, render_template, request,
@@ -25,6 +26,9 @@ MAX_ARQUIVOS = 5
 MAX_TOTAL_MB = 50
 MIN_ITENS, MAX_ITENS = 5, 50
 MAX_CARACTERES_TEXTO = 60_000
+LIMITE_DIARIO = int(os.environ.get("LIMITE_DIARIO", 50))           # gerações por utilizador por dia
+INTERVALO_SEGUNDOS = int(os.environ.get("INTERVALO_SEGUNDOS", 30))  # espera entre gerações
+FUSO_BRASIL = timezone(timedelta(hours=-3))
 EXTENSOES_DOC = {".pdf", ".docx", ".pptx"}
 EXTENSOES_IMG = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
 MIME_IMG = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
@@ -158,6 +162,56 @@ def conta_ainda_existe(usuarios):
         return True
     session.clear()
     return False
+
+
+def _blob_uso(usuario):
+    return bucket_firebase().blob(f"uso/{usuario}.json")
+
+
+def verificar_limite(usuario):
+    """Devolve uma mensagem de erro se o utilizador passou do limite, senão None.
+    Guardado no Firebase para valer entre workers e reinícios do Render.
+    Administradores não têm limite."""
+    hoje = datetime.now(FUSO_BRASIL).date().isoformat()
+    try:
+        blob = _blob_uso(usuario)
+        uso = json.loads(blob.download_as_bytes()) if blob.exists() else {}
+    except Exception:
+        log.exception("Falha ao ler uso de %s", usuario)
+        return None  # não bloqueia o professor por uma falha de leitura
+    if uso.get("dia") != hoje:
+        uso = {"dia": hoje, "total": 0, "ultimo": 0}
+
+    espera = INTERVALO_SEGUNDOS - (time.time() - uso.get("ultimo", 0))
+    if espera > 0:
+        return f"⏳ Aguarde {int(espera) + 1}s para criar outro conteúdo."
+    if uso["total"] >= LIMITE_DIARIO:
+        return f"⚠️ Limite de {LIMITE_DIARIO} conteúdos por dia atingido. Tente novamente amanhã."
+
+    uso["ultimo"] = time.time()  # marca já, para impedir pedidos simultâneos
+    _gravar_uso(usuario, uso)
+    return None
+
+
+def registrar_geracao(usuario):
+    hoje = datetime.now(FUSO_BRASIL).date().isoformat()
+    try:
+        blob = _blob_uso(usuario)
+        uso = json.loads(blob.download_as_bytes()) if blob.exists() else {}
+    except Exception:
+        log.exception("Falha ao ler uso de %s", usuario)
+        return
+    if uso.get("dia") != hoje:
+        uso = {"dia": hoje, "total": 0, "ultimo": time.time()}
+    uso["total"] = uso.get("total", 0) + 1
+    _gravar_uso(usuario, uso)
+
+
+def _gravar_uso(usuario, uso):
+    try:
+        _blob_uso(usuario).upload_from_string(json.dumps(uso), content_type="application/json")
+    except Exception:
+        log.exception("Falha ao gravar uso de %s", usuario)
 
 
 def login_obrigatorio(view):
@@ -481,6 +535,8 @@ def gerar():
         return jsonify(erro="Serviço temporariamente indisponível. Tente novamente."), 503
     if not conta_ainda_existe(usuarios):
         return jsonify(erro="A sua conta já não está ativa. Entre novamente."), 401
+    usuario = session["usuario"]
+    sem_limite = bool(usuarios[usuario].get("admin"))
 
     arquivos = [a for a in request.files.getlist("arquivos") if a and a.filename]
     tipo = request.form.get("tipo", "quiz")
@@ -502,6 +558,8 @@ def gerar():
                  and not (a.mimetype or "").startswith("image/")]
     if invalidos:
         return jsonify(erro=f"Formato não suportado: {', '.join(invalidos)}"), 400
+    if not sem_limite and (aviso := verificar_limite(usuario)):
+        return jsonify(erro=aviso), 429
 
     try:
         texto, partes = preparar_conteudo(arquivos)
@@ -525,6 +583,8 @@ def gerar():
     template = "quiz.html" if tipo == "quiz" else "flashcards.html"
     conteudo_html = render_template(template, titulo=titulo, professor=professor, itens=itens)
     link = publicar_firebase(conteudo_html, tipo)
+    if not sem_limite:
+        registrar_geracao(usuario)
 
     return jsonify(html=conteudo_html, link=link, total=len(itens),
                    nome_arquivo=f"{nome_seguro(titulo)}.html")
