@@ -27,6 +27,8 @@ MAX_TOTAL_MB = 50
 MIN_ITENS, MAX_ITENS = 5, 50
 MAX_CARACTERES_TEXTO = 60_000
 LIMITE_DIARIO = int(os.environ.get("LIMITE_DIARIO", 50))           # gerações por utilizador por dia
+LIMITE_TESTE = int(os.environ.get("LIMITE_TESTE", 10))             # gerações por dia em contas de teste
+DURACOES_TESTE = {"24h": 24, "3d": 72, "7d": 168}                  # opções do painel, em horas
 INTERVALO_SEGUNDOS = int(os.environ.get("INTERVALO_SEGUNDOS", 30))  # espera entre gerações
 FUSO_BRASIL = timezone(timedelta(hours=-3))
 EXTENSOES_DOC = {".pdf", ".docx", ".pptx"}
@@ -156,19 +158,30 @@ def senha_valida(senha):
     return len(senha) >= 8
 
 
+def expirou(conta):
+    """Contas de teste guardam "expira_em" (timestamp); contas normais não expiram."""
+    return bool(conta.get("expira_em")) and time.time() >= conta["expira_em"]
+
+
 def conta_ainda_existe(usuarios):
-    """Encerra a sessão se o utilizador foi removido depois de fazer login."""
-    if session.get("usuario") in usuarios:
+    """Encerra a sessão se o utilizador foi removido ou o teste expirou depois do login."""
+    conta = usuarios.get(session.get("usuario"))
+    if conta and not expirou(conta):
         return True
     session.clear()
     return False
+
+
+@app.template_filter("data_hora")
+def data_hora(timestamp):
+    return datetime.fromtimestamp(timestamp, FUSO_BRASIL).strftime("%d/%m às %H:%M")
 
 
 def _blob_uso(usuario):
     return bucket_firebase().blob(f"uso/{usuario}.json")
 
 
-def verificar_limite(usuario):
+def verificar_limite(usuario, limite):
     """Devolve uma mensagem de erro se o utilizador passou do limite, senão None.
     Guardado no Firebase para valer entre workers e reinícios do Render.
     Administradores não têm limite."""
@@ -185,8 +198,8 @@ def verificar_limite(usuario):
     espera = INTERVALO_SEGUNDOS - (time.time() - uso.get("ultimo", 0))
     if espera > 0:
         return f"⏳ Aguarde {int(espera) + 1}s para criar outro conteúdo."
-    if uso["total"] >= LIMITE_DIARIO:
-        return f"⚠️ Limite de {LIMITE_DIARIO} conteúdos por dia atingido. Tente novamente amanhã."
+    if uso["total"] >= limite:
+        return f"⚠️ Limite de {limite} conteúdos por dia atingido. Tente novamente amanhã."
 
     uso["ultimo"] = time.time()  # marca já, para impedir pedidos simultâneos
     _gravar_uso(usuario, uso)
@@ -221,6 +234,12 @@ def login_obrigatorio(view):
             if request.path.startswith("/api/"):
                 return jsonify(erro="Sessão expirada. Entre novamente."), 401
             return redirect(url_for("login", proximo=request.path))
+        if session.get("expira_em") and time.time() >= session["expira_em"]:
+            session.clear()
+            flash("O seu acesso de teste expirou. Fale com o administrador para continuar.", "erro")
+            if request.path.startswith("/api/"):
+                return jsonify(erro="O seu acesso de teste expirou."), 401
+            return redirect(url_for("login"))
         if session.get("trocar_senha") and request.endpoint not in ("trocar_senha", "logout"):
             return redirect(url_for("trocar_senha"))
         return view(*args, **kwargs)
@@ -412,11 +431,15 @@ def login():
         _tentativas[ip].append(time.time())
         flash("Utilizador ou senha incorretos.", "erro")
         return render_template("login.html", usuario=nome), 401
+    if expirou(conta):
+        flash("O seu acesso de teste expirou. Fale com o administrador para continuar.", "erro")
+        return render_template("login.html", usuario=nome), 403
 
     _tentativas.pop(ip, None)
     session.clear()
     session.permanent = True
-    session.update(usuario=nome, admin=bool(conta.get("admin")), trocar_senha=bool(conta.get("trocar_senha")))
+    session.update(usuario=nome, admin=bool(conta.get("admin")), trocar_senha=bool(conta.get("trocar_senha")),
+                   expira_em=conta.get("expira_em"))
     proximo = request.args.get("proximo", "")
     return redirect(proximo if proximo.startswith("/") and not proximo.startswith("//") else url_for("index"))
 
@@ -484,6 +507,12 @@ def admin():
                 flash(f"O utilizador '{nome}' já existe.", "erro")
             elif not senha_valida(senha):
                 flash("A senha deve ter pelo menos 8 caracteres.", "erro")
+            elif (horas := DURACOES_TESTE.get(request.form.get("duracao"))):
+                # Conta de teste: sem troca de senha obrigatória, nunca admin, expira sozinha
+                expira = time.time() + horas * 3600
+                usuarios[nome] = {"senha": generate_password_hash(senha), "admin": False,
+                                  "trocar_senha": False, "expira_em": expira}
+                flash(f"Acesso de teste '{nome}' criado. Expira em {data_hora(expira)}.", "ok")
             else:
                 usuarios[nome] = {"senha": generate_password_hash(senha),
                                   "admin": request.form.get("admin") == "1", "trocar_senha": True}
@@ -492,8 +521,13 @@ def admin():
             if not senha_valida(senha):
                 flash("A senha deve ter pelo menos 8 caracteres.", "erro")
             else:
-                usuarios[nome].update(senha=generate_password_hash(senha), trocar_senha=True)
+                usuarios[nome].update(senha=generate_password_hash(senha),
+                                      trocar_senha=not usuarios[nome].get("expira_em"))
                 flash(f"Senha de '{nome}' redefinida.", "ok")
+        elif acao == "renovar" and usuarios.get(nome, {}).get("expira_em"):
+            expira = max(time.time(), usuarios[nome]["expira_em"]) + 24 * 3600
+            usuarios[nome]["expira_em"] = expira
+            flash(f"Acesso de '{nome}' prolongado até {data_hora(expira)}.", "ok")
         elif acao == "remover" and nome in usuarios:
             if nome == session["usuario"]:
                 flash("Não pode remover a sua própria conta.", "erro")
@@ -510,7 +544,8 @@ def admin():
             flash("Não foi possível guardar as alterações no Firebase.", "erro")
         return redirect(url_for("admin"))
 
-    return render_template("admin.html", usuarios=sorted(usuarios.items()))
+    return render_template("admin.html", usuarios=sorted(usuarios.items()), agora=time.time(),
+                           config_limite_teste=LIMITE_TESTE)
 
 
 @app.get("/")
@@ -536,7 +571,9 @@ def gerar():
     if not conta_ainda_existe(usuarios):
         return jsonify(erro="A sua conta já não está ativa. Entre novamente."), 401
     usuario = session["usuario"]
-    sem_limite = bool(usuarios[usuario].get("admin"))
+    conta = usuarios[usuario]
+    sem_limite = bool(conta.get("admin"))
+    limite = LIMITE_TESTE if conta.get("expira_em") else LIMITE_DIARIO
 
     arquivos = [a for a in request.files.getlist("arquivos") if a and a.filename]
     tipo = request.form.get("tipo", "quiz")
@@ -558,7 +595,7 @@ def gerar():
                  and not (a.mimetype or "").startswith("image/")]
     if invalidos:
         return jsonify(erro=f"Formato não suportado: {', '.join(invalidos)}"), 400
-    if not sem_limite and (aviso := verificar_limite(usuario)):
+    if not sem_limite and (aviso := verificar_limite(usuario, limite)):
         return jsonify(erro=aviso), 429
 
     try:

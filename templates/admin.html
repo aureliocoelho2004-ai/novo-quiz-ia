@@ -12,9 +12,19 @@
                class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
         <input name="senha" type="password" required minlength="8" placeholder="senha provisória (mín. 8)" autocomplete="new-password"
                class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
-        <label class="flex items-center gap-2 text-sm text-slate-300">
+        <label for="duracao" class="block text-sm text-slate-300">Tipo de acesso</label>
+        <select id="duracao" name="duracao"
+                onchange="document.getElementById('linha-admin').classList.toggle('hidden', this.value !== '')"
+                class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+            <option value="">Permanente</option>
+            <option value="24h">Teste — 24 horas</option>
+            <option value="3d">Teste — 3 dias</option>
+            <option value="7d">Teste — 7 dias</option>
+        </select>
+        <label id="linha-admin" class="flex items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" name="admin" value="1" class="accent-red-500"> Administrador
         </label>
+        <p class="text-xs text-slate-400">Contas de teste entram direto com a senha que definir aqui, expiram sozinhas e têm limite de {{ config_limite_teste }} conteúdos por dia.</p>
         <button class="w-full bg-red-500 hover:bg-red-600 font-bold py-2.5 rounded-xl transition">Adicionar utilizador</button>
     </form>
 
@@ -26,7 +36,10 @@
                 <span>{{ nome }}</span>
                 <span class="text-xs text-slate-400">
                     {% if conta.admin %}👑 admin{% endif %}
-                    {% if conta.trocar_senha %}· senha provisória{% endif %}
+                    {% if conta.expira_em %}
+                        {% if conta.expira_em <= agora %}<span class="text-red-400">⛔ teste expirado</span>
+                        {% else %}<span class="text-amber-300">⏳ teste até {{ conta.expira_em | data_hora }}</span>{% endif %}
+                    {% elif conta.trocar_senha %}· senha provisória{% endif %}
                 </span>
             </summary>
             <div class="p-3 pt-0 space-y-2">
@@ -37,6 +50,13 @@
                            class="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-2 text-sm text-white">
                     <button class="bg-blue-600 hover:bg-blue-700 px-3 rounded-xl text-sm font-semibold">Redefinir</button>
                 </form>
+                {% if conta.expira_em %}
+                <form method="post">
+                    <input type="hidden" name="acao" value="renovar">
+                    <input type="hidden" name="usuario" value="{{ nome }}">
+                    <button class="w-full bg-amber-600 hover:bg-amber-700 py-2 rounded-xl text-sm font-semibold">Prolongar +24 horas ⏳</button>
+                </form>
+                {% endif %}
                 {% if nome != session.usuario %}
                 <form method="post" onsubmit='return confirm({{ ("Remover o utilizador " ~ nome ~ "?") | tojson }})'>
                     <input type="hidden" name="acao" value="remover">
