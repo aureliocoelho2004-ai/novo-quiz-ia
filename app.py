@@ -102,12 +102,21 @@ MAX_TENTATIVAS, JANELA_TENTATIVAS = 5, 10 * 60
 _tentativas = {}
 
 
-def carregar_usuarios():
+class FalhaUsuarios(Exception):
+    """Não foi possível ler a lista de utilizadores do Firebase."""
+
+
+def carregar_usuarios(estrito=False):
+    """Com estrito=True, uma falha de leitura levanta FalhaUsuarios em vez de
+    devolver uma lista vazia — obrigatório antes de gravar, senão a gravação
+    apagaria todos os utilizadores existentes."""
     try:
         blob = bucket_firebase().blob(ARQUIVO_USUARIOS)
         dados = json.loads(blob.download_as_bytes()) if blob.exists() else {}
-    except Exception:
+    except Exception as erro:
         log.exception("Falha ao ler utilizadores do Firebase")
+        if estrito:
+            raise FalhaUsuarios from erro
         dados = {}
 
     usuarios = {}
@@ -141,6 +150,14 @@ def bloqueado(ip):
 
 def senha_valida(senha):
     return len(senha) >= 8
+
+
+def conta_ainda_existe(usuarios):
+    """Encerra a sessão se o utilizador foi removido depois de fazer login."""
+    if session.get("usuario") in usuarios:
+        return True
+    session.clear()
+    return False
 
 
 def login_obrigatorio(view):
@@ -360,8 +377,14 @@ def logout():
 @login_obrigatorio
 def trocar_senha():
     if request.method == "POST":
-        usuarios = carregar_usuarios()
-        conta = usuarios.get(session["usuario"])
+        try:
+            usuarios = carregar_usuarios(estrito=True)
+        except FalhaUsuarios:
+            flash("Serviço temporariamente indisponível. Tente novamente.", "erro")
+            return render_template("trocar_senha.html", obrigatorio=session.get("trocar_senha")), 503
+        if not conta_ainda_existe(usuarios):
+            return redirect(url_for("login"))
+        conta = usuarios[session["usuario"]]
         atual, nova = request.form.get("atual", ""), request.form.get("nova", "")
         if not conta or not check_password_hash(conta["senha"], atual):
             flash("Senha atual incorreta.", "erro")
@@ -388,7 +411,14 @@ def trocar_senha():
 @app.route("/admin", methods=["GET", "POST"])
 @admin_obrigatorio
 def admin():
-    usuarios = carregar_usuarios()
+    try:
+        usuarios = carregar_usuarios(estrito=True)
+    except FalhaUsuarios:
+        flash("Não foi possível ler os utilizadores do Firebase. Tente novamente.", "erro")
+        return render_template("admin.html", usuarios=[]), 503
+    if not conta_ainda_existe(usuarios) or not usuarios[session["usuario"]].get("admin"):
+        session.clear()
+        return redirect(url_for("login"))
     if request.method == "POST":
         acao = request.form.get("acao")
         nome = request.form.get("usuario", "").strip().lower()
@@ -445,6 +475,13 @@ def health():
 @app.post("/api/gerar")
 @login_obrigatorio
 def gerar():
+    try:
+        usuarios = carregar_usuarios(estrito=True)
+    except FalhaUsuarios:
+        return jsonify(erro="Serviço temporariamente indisponível. Tente novamente."), 503
+    if not conta_ainda_existe(usuarios):
+        return jsonify(erro="A sua conta já não está ativa. Entre novamente."), 401
+
     arquivos = [a for a in request.files.getlist("arquivos") if a and a.filename]
     tipo = request.form.get("tipo", "quiz")
     titulo = (request.form.get("titulo") or "Desafio de Conhecimento").strip()[:120]
