@@ -327,9 +327,9 @@ def assinatura_paga_agora():
     return bool(conta) and assinatura_ativa(conta)
 
 
-# Com a assinatura vencida a pessoa ainda paga, troca a senha e acede aos quizzes que já criou.
-ROTAS_SEM_ASSINATURA = {"assinatura", "assinatura_pagar", "assinatura_retorno", "trocar_senha", "logout",
-                        "meus_quizzes", "baixar_quiz", "remover_quiz"}
+# Com a assinatura vencida a pessoa só pode pagar, trocar a senha e sair. "Meus quizzes"
+# fica bloqueado até renovar (o histórico não é apagado e volta com o pagamento).
+ROTAS_SEM_ASSINATURA = {"assinatura", "assinatura_pagar", "assinatura_retorno", "trocar_senha", "logout"}
 
 
 def login_obrigatorio(view):
@@ -876,7 +876,8 @@ def assinatura():
     if conta:
         atualizar_sessao_assinatura(conta)
     return render_template("assinatura.html", conta=conta or {}, planos=PLANOS, agora=time.time(),
-                           pagamentos_ativos=bool(INFINITEPAY_HANDLE))
+                           pagamentos_ativos=bool(INFINITEPAY_HANDLE),
+                           total_quizzes=len(listar_historico(session["usuario"])))
 
 
 @app.post("/assinatura/pagar")
@@ -959,13 +960,25 @@ def index():
                            recentes=listar_historico(session["usuario"])[:5])
 
 
+def assinatura_vencida_agora():
+    """Confere no Firebase (não só na sessão) se um assinante está em dia."""
+    conta = carregar_usuarios().get(session["usuario"])
+    if conta:
+        atualizar_sessao_assinatura(conta)
+    return bool(conta) and not assinatura_ativa(conta)
+
+
 @app.get("/meus-quizzes")
 @login_obrigatorio
 def meus_quizzes():
+    if session.get("assinante") and assinatura_vencida_agora():
+        return redirect(url_for("assinatura"))
     return render_template("meus_quizzes.html", itens=listar_historico(session["usuario"]))
 
 
 def _item_do_usuario(item_id):
+    if session.get("assinante") and assinatura_vencida_agora():
+        abort(402)
     item = next((i for i in listar_historico(session["usuario"]) if i.get("id") == item_id), None)
     if item is None:
         abort(404)
@@ -989,6 +1002,9 @@ def baixar_quiz(item_id):
 @app.post("/meus-quizzes/<item_id>/remover")
 @login_obrigatorio
 def remover_quiz(item_id):
+    if session.get("assinante") and assinatura_vencida_agora():
+        return redirect(url_for("assinatura"))
+
     def remover(itens):
         restantes = [i for i in itens if i.get("id") != item_id]
         if len(restantes) == len(itens):
