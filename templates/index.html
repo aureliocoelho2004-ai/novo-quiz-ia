@@ -72,6 +72,18 @@
 
     <iframe id="preview" title="Pré-visualização" class="w-full h-[640px] rounded-xl border border-slate-700 bg-slate-900" sandbox="allow-scripts"></iframe>
 </section>
+
+<!-- Últimos quizzes da conta (o histórico completo fica em "Meus quizzes") -->
+<section id="recentes" class="mt-8 space-y-3 {{ '' if recentes else 'hidden' }}">
+    <div class="flex justify-between items-baseline">
+        <h2 class="font-bold">📚 Seus últimos quizzes</h2>
+        <a href="{{ url_for('meus_quizzes') }}" class="text-xs text-red-400 underline">Ver todos</a>
+    </div>
+    <ul id="lista-recentes" class="space-y-3">
+        {% for item in recentes %}{% include "_item_quiz.html" %}{% endfor %}
+    </ul>
+    {% with item = {}, modelo = true %}{% include "_item_quiz.html" %}{% endwith %}
+</section>
 {% endblock %}
 
 {% block scripts %}

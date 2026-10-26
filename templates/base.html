@@ -16,6 +16,7 @@
             <nav class="flex justify-center items-center gap-3 mt-3 text-xs text-slate-400">
                 <span>👤 {{ session.usuario }}</span>
                 {% if session.admin %}<a href="{{ url_for('admin') }}" class="hover:text-white underline">Admin</a>{% endif %}
+                <a href="{{ url_for('meus_quizzes') }}" class="hover:text-white underline">Meus quizzes</a>
                 {% if session.assinante %}<a href="{{ url_for('assinatura') }}" class="hover:text-white underline">Assinatura</a>{% endif %}
                 <a href="{{ url_for('trocar_senha') }}" class="hover:text-white underline">Senha</a>
                 <form method="post" action="{{ url_for('logout') }}" class="inline">
@@ -42,6 +43,7 @@
     <footer class="text-xs text-slate-500 mt-6">
         Quizify &copy; 2026 - Todos os direitos reservados.
     </footer>
+    <script src="{{ url_for('static', filename='js/copiar.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>
