@@ -585,6 +585,14 @@ def url_publica(endpoint, **valores):
     return base + url_for(endpoint, **valores)
 
 
+def url_webhook(endpoint, **valores):
+    """Endereço para avisos de pagamento. Usa o endereço fixo do Render
+    (RENDER_EXTERNAL_URL, ex.: https://quizify.onrender.com), que não depende do
+    DNS do domínio próprio: se o DNS falhar, os pagamentos continuam a ser creditados."""
+    base = (os.environ.get("URL_WEBHOOK") or os.environ.get("RENDER_EXTERNAL_URL") or "").rstrip("/")
+    return base + url_for(endpoint, **valores) if base else url_publica(endpoint, **valores)
+
+
 def token_webhook():
     """Segredo incluído no endereço do aviso, para descartar chamadas de terceiros."""
     return os.environ.get("INFINITEPAY_WEBHOOK_TOKEN") or hmac.new(
@@ -610,7 +618,7 @@ def criar_checkout(pedido_id, plano, email):
         "handle": INFINITEPAY_HANDLE,
         "order_nsu": pedido_id,
         "redirect_url": url_publica("assinatura_retorno"),
-        "webhook_url": url_publica("webhook_infinitepay", token=token_webhook()),
+        "webhook_url": url_webhook("webhook_infinitepay", token=token_webhook()),
         "items": [{"quantity": 1, "price": plano["centavos"], "description": f"Quizify - Plano {plano['nome']}"}],
         "customer": {"email": email} if "@" in email else {},
     })

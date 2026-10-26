@@ -29,6 +29,7 @@ static/js/main.js       # upload, compressão de imagens no navegador, download 
 | `INFINITEPAY_HANDLE` | Sua InfiniteTag (sem o `$`). Sem ela, os pagamentos ficam desligados |
 | `URL_PUBLICA` | Endereço do site, ex.: `https://app.quizzify.com.br` (usado nos links de retorno e aviso) |
 | `PRECO_MENSAL_CENTAVOS` / `PRECO_ANUAL_CENTAVOS` | (opcional) preços em centavos; padrão 2990 e 29900 |
+| `URL_WEBHOOK` | (opcional) endereço para os avisos da InfinitePay. Por padrão usa `RENDER_EXTERNAL_URL` (o endereço `….onrender.com`, definido pelo próprio Render), para os pagamentos não dependerem do DNS do domínio |
 | `INFINITEPAY_WEBHOOK_TOKEN` | (opcional) segredo do endereço de aviso; por padrão é derivado da `SECRET_KEY` |
 | `INFINITEPAY_API_KEY` | (opcional) chave da API, se a InfinitePay exigir |
 | `INTERVALO_SEGUNDOS` | (opcional) espera mínima entre gerações; padrão 30 |
