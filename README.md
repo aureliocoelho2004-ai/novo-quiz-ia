@@ -45,7 +45,8 @@ static/js/main.js       # upload, compressão de imagens no navegador, download 
 ## Render
 
 - **Build Command:** `pip install -r requirements.txt`
-- **Start Command:** `gunicorn app:app --workers 2 --timeout 180`
+- **Start Command:** `gunicorn app:app` (a configuração fica em `gunicorn.conf.py`: 2 processos × 8 threads, timeout 180 s)
+- **Capacidade:** até `GERACOES_SIMULTANEAS` (padrão 4) gerações por processo ao mesmo tempo; quem passar do limite espera até `ESPERA_VAGA_SEGUNDOS` (padrão 90) e recebe "tente de novo em 1 minuto". Ajuste também com `WEB_CONCURRENCY` (processos) e `GUNICORN_THREADS`.
 - **Cron-job:** aponte para `https://SEU-DOMINIO/health` (resposta leve, não chama a IA).
 
 ## Rodar localmente

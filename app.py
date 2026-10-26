@@ -9,9 +9,11 @@ import json
 import logging
 import os
 import re
+import threading
 import unicodedata
 import time
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
@@ -81,6 +83,10 @@ app.secret_key = _chave_secreta()
 # --------------------------------------------------------------------------- #
 _cliente_gemini = None
 _bucket = None
+# O gunicorn roda com threads (gunicorn.conf.py): várias requisições ao mesmo
+# tempo no mesmo processo, por isso a inicialização e os contadores usam travas.
+_trava_init = threading.Lock()
+_trava_contadores = threading.Lock()
 
 
 def obter_segredo(chave):
@@ -93,21 +99,43 @@ def obter_segredo(chave):
 def gemini():
     global _cliente_gemini
     if _cliente_gemini is None:
-        from google import genai
-        _cliente_gemini = genai.Client(api_key=obter_segredo("GEMINI_API_KEY"))
+        with _trava_init:
+            if _cliente_gemini is None:
+                from google import genai
+                _cliente_gemini = genai.Client(api_key=obter_segredo("GEMINI_API_KEY"))
     return _cliente_gemini
 
 
 def bucket_firebase():
     global _bucket
     if _bucket is None:
-        import firebase_admin
-        from firebase_admin import credentials, storage
-        if not firebase_admin._apps:
-            cred = credentials.Certificate(json.loads(obter_segredo("FIREBASE_KEY")))
-            firebase_admin.initialize_app(cred, {"storageBucket": obter_segredo("FIREBASE_BUCKET")})
-        _bucket = storage.bucket()
+        with _trava_init:
+            if _bucket is None:
+                import firebase_admin
+                from firebase_admin import credentials, storage
+                if not firebase_admin._apps:
+                    cred = credentials.Certificate(json.loads(obter_segredo("FIREBASE_KEY")))
+                    firebase_admin.initialize_app(cred, {"storageBucket": obter_segredo("FIREBASE_BUCKET")})
+                _bucket = storage.bucket()
     return _bucket
+
+
+# Gerações simultâneas por processo: cada uma lê arquivos e imagens na memória,
+# então limitamos para não estourar a RAM do Render. Quem passar do limite
+# espera a vez (até ESPERA_VAGA_SEGUNDOS) em vez de derrubar o servidor.
+GERACOES_SIMULTANEAS = int(os.environ.get("GERACOES_SIMULTANEAS", 4))
+ESPERA_VAGA_SEGUNDOS = int(os.environ.get("ESPERA_VAGA_SEGUNDOS", 90))
+_vagas_geracao = threading.BoundedSemaphore(GERACOES_SIMULTANEAS)
+
+
+@contextmanager
+def vaga_geracao():
+    conseguiu = _vagas_geracao.acquire(timeout=ESPERA_VAGA_SEGUNDOS)
+    try:
+        yield conseguiu
+    finally:
+        if conseguiu:
+            _vagas_geracao.release()
 
 
 # --------------------------------------------------------------------------- #
@@ -198,8 +226,14 @@ def ip_cliente():
 
 def bloqueado(ip):
     agora = time.time()
-    _tentativas[ip] = [t for t in _tentativas.get(ip, []) if agora - t < JANELA_TENTATIVAS]
-    return len(_tentativas[ip]) >= MAX_TENTATIVAS
+    with _trava_contadores:
+        _tentativas[ip] = [t for t in _tentativas.get(ip, []) if agora - t < JANELA_TENTATIVAS]
+        return len(_tentativas[ip]) >= MAX_TENTATIVAS
+
+
+def registrar_tentativa(contadores, ip, quando=None):
+    with _trava_contadores:
+        contadores.setdefault(ip, []).append(quando or time.time())
 
 
 def senha_valida(senha):
@@ -605,14 +639,15 @@ def login():
     usuarios = carregar_usuarios()
     conta = usuarios.get(nome)
     if not conta or not check_password_hash(conta["senha"], senha):
-        _tentativas[ip].append(time.time())
+        registrar_tentativa(_tentativas, ip)
         flash("Utilizador ou senha incorretos.", "erro")
         return render_template("login.html", usuario=nome), 401
     if expirou(conta):
         flash("O seu acesso de teste expirou. Fale com o administrador para continuar.", "erro")
         return render_template("login.html", usuario=nome), 403
 
-    _tentativas.pop(ip, None)
+    with _trava_contadores:
+        _tentativas.pop(ip, None)
     session.clear()
     session.permanent = True
     session.update(usuario=nome, admin=bool(conta.get("admin")), trocar_senha=bool(conta.get("trocar_senha")),
@@ -744,8 +779,10 @@ def cadastro():
     email = request.form.get("email", "").strip().lower()
     senha = request.form.get("senha", "")
     ip, agora = ip_cliente(), time.time()
-    _cadastros[ip] = [t for t in _cadastros.get(ip, []) if agora - t < 3600]
-    if len(_cadastros[ip]) >= 5:
+    with _trava_contadores:
+        _cadastros[ip] = [t for t in _cadastros.get(ip, []) if agora - t < 3600]
+        excedeu = len(_cadastros[ip]) >= 5
+    if excedeu:
         flash("Muitos cadastros a partir desta ligação. Tente mais tarde.", "erro")
     elif not EMAIL_VALIDO.fullmatch(email) or len(email) > 120:
         flash("Informe um e-mail válido.", "erro")
@@ -772,7 +809,7 @@ def cadastro():
         if criada is False:
             flash("Já existe uma conta com este e-mail. Entre com a sua senha.", "erro")
             return redirect(url_for("login"))
-        _cadastros[ip].append(agora)
+        registrar_tentativa(_cadastros, ip, agora)
         session.clear()
         session.permanent = True
         session.update(usuario=email, admin=False, trocar_senha=False, expira_em=None)
@@ -913,36 +950,39 @@ def gerar():
                  and not (a.mimetype or "").startswith("image/")]
     if invalidos:
         return jsonify(erro=f"Formato não suportado: {', '.join(invalidos)}"), 400
-    if not sem_limite and (aviso := verificar_limite(usuario, limite)):
-        return jsonify(erro=aviso), 429
+    with vaga_geracao() as tem_vaga:
+        if not tem_vaga:
+            return jsonify(erro="Muitas pessoas gerando quizzes agora. Tente de novo em 1 minuto."), 503
+        if not sem_limite and (aviso := verificar_limite(usuario, limite)):
+            return jsonify(erro=aviso), 429
 
-    try:
-        texto, partes = preparar_conteudo(arquivos)
-    except Exception:
-        log.exception("Falha na extração")
-        return jsonify(erro="Não foi possível ler um dos arquivos. Verifique se não está corrompido."), 422
-    if not texto and not partes:
-        return jsonify(erro="Não encontrei texto nos arquivos enviados."), 422
+        try:
+            texto, partes = preparar_conteudo(arquivos)
+        except Exception:
+            log.exception("Falha na extração")
+            return jsonify(erro="Não foi possível ler um dos arquivos. Verifique se não está corrompido."), 422
+        if not texto and not partes:
+            return jsonify(erro="Não encontrei texto nos arquivos enviados."), 422
 
-    try:
-        if tipo == "quiz":
-            itens = normalizar_quiz(chamar_gemini(PROMPT_QUIZ.format(n=n), texto, partes), n)
-        else:
-            itens = normalizar_flash(chamar_gemini(PROMPT_FLASH.format(n=n), texto, partes), n)
-    except Exception:
-        log.exception("Falha na geração com IA")
-        return jsonify(erro="A IA não conseguiu gerar o conteúdo. Tente novamente."), 502
-    if not itens:
-        return jsonify(erro="A IA devolveu um resultado vazio. Tente novamente."), 502
+        try:
+            if tipo == "quiz":
+                itens = normalizar_quiz(chamar_gemini(PROMPT_QUIZ.format(n=n), texto, partes), n)
+            else:
+                itens = normalizar_flash(chamar_gemini(PROMPT_FLASH.format(n=n), texto, partes), n)
+        except Exception:
+            log.exception("Falha na geração com IA")
+            return jsonify(erro="A IA não conseguiu gerar o conteúdo. Tente novamente."), 502
+        if not itens:
+            return jsonify(erro="A IA devolveu um resultado vazio. Tente novamente."), 502
 
-    template = "quiz.html" if tipo == "quiz" else "flashcards.html"
-    conteudo_html = render_template(template, titulo=titulo, professor=professor, itens=itens)
-    link = publicar_firebase(conteudo_html, tipo)
-    if not sem_limite:
-        registrar_geracao(usuario)
+        template = "quiz.html" if tipo == "quiz" else "flashcards.html"
+        conteudo_html = render_template(template, titulo=titulo, professor=professor, itens=itens)
+        link = publicar_firebase(conteudo_html, tipo)
+        if not sem_limite:
+            registrar_geracao(usuario)
 
-    return jsonify(html=conteudo_html, link=link, total=len(itens),
-                   nome_arquivo=f"{nome_seguro(titulo)}.html")
+        return jsonify(html=conteudo_html, link=link, total=len(itens),
+                       nome_arquivo=f"{nome_seguro(titulo)}.html")
 
 
 @app.errorhandler(RequestEntityTooLarge)
