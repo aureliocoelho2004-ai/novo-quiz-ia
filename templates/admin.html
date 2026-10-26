@@ -36,7 +36,11 @@
                 <span>{{ nome }}</span>
                 <span class="text-xs text-slate-400">
                     {% if conta.admin %}👑 admin{% endif %}
-                    {% if conta.expira_em %}
+                    {% if conta.assinante %}
+                        {% if conta.pago_ate and conta.pago_ate > agora %}<span class="text-green-400">💳 até {{ conta.pago_ate | data_hora }}</span>
+                        {% elif conta.pago_ate %}<span class="text-red-400">💳 vencida</span>
+                        {% else %}<span class="text-slate-500">💳 sem pagamento</span>{% endif %}
+                    {% elif conta.expira_em %}
                         {% if conta.expira_em <= agora %}<span class="text-red-400">⛔ teste expirado</span>
                         {% else %}<span class="text-amber-300">⏳ teste até {{ conta.expira_em | data_hora }}</span>{% endif %}
                     {% elif conta.trocar_senha %}· senha provisória{% endif %}
@@ -50,6 +54,13 @@
                            class="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-2 text-sm text-white">
                     <button class="bg-blue-600 hover:bg-blue-700 px-3 rounded-xl text-sm font-semibold">Redefinir</button>
                 </form>
+                {% if conta.assinante %}
+                <form method="post">
+                    <input type="hidden" name="acao" value="liberar30">
+                    <input type="hidden" name="usuario" value="{{ nome }}">
+                    <button class="w-full bg-green-700 hover:bg-green-600 py-2 rounded-xl text-sm font-semibold">Liberar +30 dias (manual) 💳</button>
+                </form>
+                {% endif %}
                 {% if conta.expira_em %}
                 <form method="post">
                     <input type="hidden" name="acao" value="renovar">

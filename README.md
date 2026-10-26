@@ -26,6 +26,11 @@ static/js/main.js       # upload, compressão de imagens no navegador, download 
 | `SECRET_KEY` | Texto longo e aleatório para assinar as sessões de login (ex.: `python -c "import secrets; print(secrets.token_hex(32))"`) |
 | `LIMITE_DIARIO` | (opcional) conteúdos por utilizador por dia; padrão 50 (admins não têm limite) |
 | `LIMITE_TESTE` | (opcional) conteúdos por dia em contas de teste; padrão 10 |
+| `INFINITEPAY_HANDLE` | Sua InfiniteTag (sem o `$`). Sem ela, os pagamentos ficam desligados |
+| `URL_PUBLICA` | Endereço do site, ex.: `https://app.quizzify.com.br` (usado nos links de retorno e aviso) |
+| `PRECO_MENSAL_CENTAVOS` / `PRECO_ANUAL_CENTAVOS` | (opcional) preços em centavos; padrão 2990 e 29900 |
+| `INFINITEPAY_WEBHOOK_TOKEN` | (opcional) segredo do endereço de aviso; por padrão é derivado da `SECRET_KEY` |
+| `INFINITEPAY_API_KEY` | (opcional) chave da API, se a InfinitePay exigir |
 | `INTERVALO_SEGUNDOS` | (opcional) espera mínima entre gerações; padrão 30 |
 | `ADMIN_USER` / `ADMIN_PASSWORD` | (opcional) cria o primeiro admin quando ainda não existe `usuarios.json` no Firebase |
 
@@ -49,3 +54,13 @@ static/js/main.js       # upload, compressão de imagens no navegador, download 
 pip install -r requirements.txt
 flask --app app run --debug
 ```
+
+## Assinaturas (InfinitePay)
+
+1. A pessoa cria a conta em `/cadastro` (e-mail e senha) e é levada a `/assinatura`.
+2. Escolhe mensal (30 dias) ou anual (365 dias); o app cria um pedido em `pedidos/<id>.json` e abre o Checkout Integrado.
+3. Após o pagamento, a InfinitePay chama `/webhooks/infinitepay` e devolve o cliente a `/assinatura/retorno`.
+   Nos dois casos o app confirma o pagamento na própria InfinitePay (`payment_check`) antes de liberar.
+4. Os dias somam-se ao que já existe; sem renovação, o acesso fica bloqueado até novo pagamento.
+5. No `/admin`, cada assinante mostra a validade e há o botão "Liberar +30 dias" para casos de suporte.
+   Se um pagamento for confirmado mas não creditado, o log do Render mostra `PAGAMENTO SEM CRÉDITO`.

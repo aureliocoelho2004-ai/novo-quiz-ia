@@ -3,6 +3,7 @@
 Toda a lógica fica aqui; o HTML vive em templates/ e o JS/CSS da página em static/.
 """
 import hashlib
+import hmac
 import io
 import json
 import logging
@@ -14,8 +15,9 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from functools import wraps
 
-from flask import (Flask, abort, flash, jsonify, redirect, render_template, request,
-                   session, url_for)
+import requests
+from flask import (Flask, abort, flash, g, has_request_context, jsonify, redirect,
+                   render_template, request, session, url_for)
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -31,6 +33,16 @@ LIMITE_TESTE = int(os.environ.get("LIMITE_TESTE", 10))             # gerações 
 DURACOES_TESTE = {"24h": 24, "3d": 72, "7d": 168}                  # opções do painel, em horas
 INTERVALO_SEGUNDOS = int(os.environ.get("INTERVALO_SEGUNDOS", 30))  # espera entre gerações
 FUSO_BRASIL = timezone(timedelta(hours=-3))
+DIA = 24 * 3600
+
+# Assinaturas pagas pela InfinitePay (Checkout Integrado). Preços em centavos.
+PLANOS = {
+    "mensal": {"nome": "Mensal", "centavos": int(os.environ.get("PRECO_MENSAL_CENTAVOS", 2990)), "dias": 30},
+    "anual": {"nome": "Anual", "centavos": int(os.environ.get("PRECO_ANUAL_CENTAVOS", 29900)), "dias": 365},
+}
+INFINITEPAY_HANDLE = os.environ.get("INFINITEPAY_HANDLE", "").strip().lstrip("$@")
+INFINITEPAY_API = "https://api.checkout.infinitepay.io"
+AVISO_VENCIMENTO_DIAS = 5
 EXTENSOES_DOC = {".pdf", ".docx", ".pptx"}
 EXTENSOES_IMG = {".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif"}
 MIME_IMG = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
@@ -117,13 +129,15 @@ def carregar_usuarios(estrito=False):
     devolver uma lista vazia — obrigatório antes de gravar, senão a gravação
     apagaria todos os utilizadores existentes."""
     try:
-        blob = bucket_firebase().blob(ARQUIVO_USUARIOS)
-        dados = json.loads(blob.download_as_bytes()) if blob.exists() else {}
+        dados, geracao = ler_json_versionado(ARQUIVO_USUARIOS)
+        dados = dados or {}
     except Exception as erro:
         log.exception("Falha ao ler utilizadores do Firebase")
         if estrito:
             raise FalhaUsuarios from erro
-        dados = {}
+        dados, geracao = {}, None
+    if has_request_context():
+        g.geracao_usuarios = geracao
 
     usuarios = {}
     for nome, valor in dados.items():
@@ -140,8 +154,42 @@ def carregar_usuarios(estrito=False):
 
 
 def salvar_usuarios(usuarios):
-    bucket_firebase().blob(ARQUIVO_USUARIOS).upload_from_string(
-        json.dumps(usuarios, ensure_ascii=False), content_type="application/json")
+    """Grava só se ninguém alterou o arquivo desde a leitura (senão levanta
+    PreconditionFailed), para um pagamento e o admin não se sobrescreverem."""
+    geracao = g.get("geracao_usuarios") if has_request_context() else None
+    g.geracao_usuarios = gravar_json_versionado(ARQUIVO_USUARIOS, usuarios, geracao)
+
+
+def alterar_usuarios(alteracao, tentativas=5):
+    """Lê, aplica `alteracao(usuarios)` e grava, repetindo se outra gravação
+    acontecer no meio. A alteração devolve False para cancelar sem gravar."""
+    from google.api_core.exceptions import PreconditionFailed
+    for _ in range(tentativas):
+        usuarios = carregar_usuarios(estrito=True)
+        resultado = alteracao(usuarios)
+        if resultado is False:
+            return False
+        try:
+            salvar_usuarios(usuarios)
+            return resultado
+        except PreconditionFailed:
+            continue
+    raise FalhaUsuarios("Muitas gravações simultâneas")
+
+
+def ler_json_versionado(caminho):
+    """Devolve (dados, geração); geração 0 significa que o arquivo não existe."""
+    blob = bucket_firebase().get_blob(caminho)
+    if blob is None:
+        return None, 0
+    return json.loads(blob.download_as_bytes(if_generation_match=blob.generation)), blob.generation
+
+
+def gravar_json_versionado(caminho, dados, geracao=None):
+    blob = bucket_firebase().blob(caminho)
+    blob.upload_from_string(json.dumps(dados, ensure_ascii=False), content_type="application/json",
+                            if_generation_match=geracao)
+    return blob.generation
 
 
 def ip_cliente():
@@ -161,6 +209,15 @@ def senha_valida(senha):
 def expirou(conta):
     """Contas de teste guardam "expira_em" (timestamp); contas normais não expiram."""
     return bool(conta.get("expira_em")) and time.time() >= conta["expira_em"]
+
+
+def assinatura_ativa(conta):
+    """Contas de assinante só funcionam com pagamento em dia; as outras sempre."""
+    return not conta.get("assinante") or conta.get("pago_ate", 0) > time.time()
+
+
+def atualizar_sessao_assinatura(conta):
+    session.update(assinante=bool(conta.get("assinante")), pago_ate=conta.get("pago_ate", 0))
 
 
 def conta_ainda_existe(usuarios):
@@ -227,6 +284,18 @@ def _gravar_uso(usuario, uso):
         log.exception("Falha ao gravar uso de %s", usuario)
 
 
+def assinatura_paga_agora():
+    """A sessão diz que venceu: confirma no Firebase antes de bloquear, porque o
+    pagamento pode ter sido confirmado (aviso da InfinitePay) depois do login."""
+    conta = carregar_usuarios().get(session.get("usuario"))
+    if conta:
+        atualizar_sessao_assinatura(conta)
+    return bool(conta) and assinatura_ativa(conta)
+
+
+ROTAS_SEM_ASSINATURA = {"assinatura", "assinatura_pagar", "assinatura_retorno", "trocar_senha", "logout"}
+
+
 def login_obrigatorio(view):
     @wraps(view)
     def envolvida(*args, **kwargs):
@@ -242,6 +311,12 @@ def login_obrigatorio(view):
             return redirect(url_for("login"))
         if session.get("trocar_senha") and request.endpoint not in ("trocar_senha", "logout"):
             return redirect(url_for("trocar_senha"))
+        if (session.get("assinante") and session.get("pago_ate", 0) <= time.time()
+                and request.endpoint not in ROTAS_SEM_ASSINATURA
+                and not assinatura_paga_agora()):
+            if request.path.startswith("/api/"):
+                return jsonify(erro="A sua assinatura não está ativa. Renove para continuar."), 402
+            return redirect(url_for("assinatura"))
         return view(*args, **kwargs)
     return envolvida
 
@@ -411,6 +486,108 @@ def publicar_firebase(conteudo_html, prefixo):
 
 
 # --------------------------------------------------------------------------- #
+# Pagamentos (InfinitePay — Checkout Integrado)
+# Cada compra gera um pedido em pedidos/<order_nsu>.json. O aviso da
+# InfinitePay não é assinado, por isso o pagamento é SEMPRE confirmado na
+# própria InfinitePay (payment_check) antes de liberar o acesso.
+# --------------------------------------------------------------------------- #
+class FalhaPagamento(Exception):
+    """A InfinitePay não respondeu como esperado."""
+
+
+def url_publica(endpoint, **valores):
+    base = os.environ.get("URL_PUBLICA", "").rstrip("/") or request.host_url.rstrip("/").replace("http://", "https://")
+    return base + url_for(endpoint, **valores)
+
+
+def token_webhook():
+    """Segredo incluído no endereço do aviso, para descartar chamadas de terceiros."""
+    return os.environ.get("INFINITEPAY_WEBHOOK_TOKEN") or hmac.new(
+        app.secret_key.encode(), b"infinitepay-webhook", hashlib.sha256).hexdigest()[:32]
+
+
+def _chamar_infinitepay(caminho, corpo):
+    cabecalhos = {"Content-Type": "application/json", "Accept": "application/json"}
+    if os.environ.get("INFINITEPAY_API_KEY"):
+        cabecalhos["X-Api-Key"] = os.environ["INFINITEPAY_API_KEY"]
+    try:
+        resposta = requests.post(INFINITEPAY_API + caminho, json=corpo, headers=cabecalhos, timeout=15)
+        dados = resposta.json()
+    except (requests.RequestException, ValueError) as erro:
+        raise FalhaPagamento(f"Sem resposta válida da InfinitePay em {caminho}") from erro
+    if not resposta.ok:
+        raise FalhaPagamento(f"InfinitePay {caminho} devolveu {resposta.status_code}: {dados}")
+    return dados
+
+
+def criar_checkout(pedido_id, plano, email):
+    dados = _chamar_infinitepay("/links", {
+        "handle": INFINITEPAY_HANDLE,
+        "order_nsu": pedido_id,
+        "redirect_url": url_publica("assinatura_retorno"),
+        "webhook_url": url_publica("webhook_infinitepay", token=token_webhook()),
+        "items": [{"quantity": 1, "price": plano["centavos"], "description": f"Quizify - Plano {plano['nome']}"}],
+        "customer": {"email": email} if "@" in email else {},
+    })
+    link = next((dados.get(c) for c in ("url", "link", "checkout_url", "payment_url") if dados.get(c)), None)
+    if not link:
+        raise FalhaPagamento(f"InfinitePay não devolveu o link: {dados}")
+    return link
+
+
+def confirmar_pagamento(pedido_id, transacao, slug):
+    """Confirma na InfinitePay e soma os dias à conta. Seguro para chamar várias
+    vezes (aviso + retorno do cliente): o pedido só é creditado uma vez.
+    Devolve "pago", "ja_pago", "nao_pago" ou "desconhecido"."""
+    from google.api_core.exceptions import PreconditionFailed
+
+    if not re.fullmatch(r"[0-9a-f]{32}", pedido_id):
+        return "desconhecido"
+    caminho = f"pedidos/{pedido_id}.json"
+    pedido, geracao = ler_json_versionado(caminho)
+    if not pedido:
+        return "desconhecido"
+    if pedido.get("status") == "pago":
+        return "ja_pago"
+
+    check = _chamar_infinitepay("/payment_check", {
+        "handle": INFINITEPAY_HANDLE, "order_nsu": pedido_id, "transaction_nsu": transacao, "slug": slug})
+    pago = check.get("paid") is True or str(check.get("paid")).lower() == "true"
+    valor = int(float(check.get("paid_amount") or check.get("amount") or 0))
+    if not pago:
+        return "nao_pago"
+    if valor < pedido["centavos"]:  # juros do parcelamento só aumentam o valor
+        log.error("Pedido %s pago com valor menor (%s < %s)", pedido_id, valor, pedido["centavos"])
+        return "nao_pago"
+
+    # Marca o pedido como pago antes de creditar: se o aviso e o retorno do
+    # cliente chegarem juntos, só um deles consegue esta gravação.
+    pedido.update(status="pago", transacao=transacao, slug=slug, pago_em=time.time(), valor_pago=valor)
+    try:
+        gravar_json_versionado(caminho, pedido, geracao)
+    except PreconditionFailed:
+        return "ja_pago"
+
+    def creditar(usuarios):
+        conta = usuarios.get(pedido["usuario"])
+        if conta is None:
+            log.error("Pedido %s pago para conta inexistente %s", pedido_id, pedido["usuario"])
+            return False
+        conta["pago_ate"] = max(time.time(), conta.get("pago_ate", 0)) + pedido["dias"] * DIA
+        conta["plano"] = pedido["plano"]
+        return conta
+
+    try:
+        conta = alterar_usuarios(creditar)
+    except Exception:
+        log.exception("PAGAMENTO SEM CRÉDITO: pedido %s de %s — liberar à mão no /admin", pedido_id, pedido["usuario"])
+        raise
+    if conta and has_request_context() and session.get("usuario") == pedido["usuario"]:
+        atualizar_sessao_assinatura(conta)
+    return "pago"
+
+
+# --------------------------------------------------------------------------- #
 # Rotas
 # --------------------------------------------------------------------------- #
 @app.route("/login", methods=["GET", "POST"])
@@ -440,6 +617,7 @@ def login():
     session.permanent = True
     session.update(usuario=nome, admin=bool(conta.get("admin")), trocar_senha=bool(conta.get("trocar_senha")),
                    expira_em=conta.get("expira_em"))
+    atualizar_sessao_assinatura(conta)
     proximo = request.args.get("proximo", "")
     return redirect(proximo if proximo.startswith("/") and not proximo.startswith("//") else url_for("index"))
 
@@ -528,6 +706,10 @@ def admin():
             expira = max(time.time(), usuarios[nome]["expira_em"]) + 24 * 3600
             usuarios[nome]["expira_em"] = expira
             flash(f"Acesso de '{nome}' prolongado até {data_hora(expira)}.", "ok")
+        elif acao == "liberar30" and usuarios.get(nome, {}).get("assinante"):
+            conta = usuarios[nome]
+            conta["pago_ate"] = max(time.time(), conta.get("pago_ate", 0)) + 30 * DIA
+            flash(f"Assinatura de '{nome}' liberada até {data_hora(conta['pago_ate'])}.", "ok")
         elif acao == "remover" and nome in usuarios:
             if nome == session["usuario"]:
                 flash("Não pode remover a sua própria conta.", "erro")
@@ -546,6 +728,139 @@ def admin():
 
     return render_template("admin.html", usuarios=sorted(usuarios.items()), agora=time.time(),
                            config_limite_teste=LIMITE_TESTE)
+
+
+EMAIL_VALIDO = re.compile(r"[^@\s]+@[^@\s]+\.[a-z]{2,}")
+_cadastros = {}
+
+
+@app.route("/cadastro", methods=["GET", "POST"])
+def cadastro():
+    if session.get("usuario"):
+        return redirect(url_for("index"))
+    if request.method == "GET":
+        return render_template("cadastro.html")
+
+    email = request.form.get("email", "").strip().lower()
+    senha = request.form.get("senha", "")
+    ip, agora = ip_cliente(), time.time()
+    _cadastros[ip] = [t for t in _cadastros.get(ip, []) if agora - t < 3600]
+    if len(_cadastros[ip]) >= 5:
+        flash("Muitos cadastros a partir desta ligação. Tente mais tarde.", "erro")
+    elif not EMAIL_VALIDO.fullmatch(email) or len(email) > 120:
+        flash("Informe um e-mail válido.", "erro")
+    elif not senha_valida(senha):
+        flash("A senha deve ter pelo menos 8 caracteres.", "erro")
+    elif senha != request.form.get("confirmar", ""):
+        flash("A confirmação não coincide com a senha.", "erro")
+    else:
+        nova = {"senha": generate_password_hash(senha), "admin": False, "trocar_senha": False,
+                "assinante": True, "pago_ate": 0, "criado_em": agora}
+
+        def criar(usuarios):
+            if email in usuarios:
+                return False
+            usuarios[email] = nova
+            return nova
+
+        try:
+            criada = alterar_usuarios(criar)
+        except Exception:
+            log.exception("Falha ao criar conta")
+            flash("Não foi possível criar a conta agora. Tente novamente.", "erro")
+            return render_template("cadastro.html", email=email), 503
+        if criada is False:
+            flash("Já existe uma conta com este e-mail. Entre com a sua senha.", "erro")
+            return redirect(url_for("login"))
+        _cadastros[ip].append(agora)
+        session.clear()
+        session.permanent = True
+        session.update(usuario=email, admin=False, trocar_senha=False, expira_em=None)
+        atualizar_sessao_assinatura(nova)
+        return redirect(url_for("assinatura"))
+    return render_template("cadastro.html", email=email), 400
+
+
+@app.get("/assinatura")
+@login_obrigatorio
+def assinatura():
+    conta = carregar_usuarios().get(session["usuario"])
+    if conta:
+        atualizar_sessao_assinatura(conta)
+    return render_template("assinatura.html", conta=conta or {}, planos=PLANOS, agora=time.time(),
+                           pagamentos_ativos=bool(INFINITEPAY_HANDLE))
+
+
+@app.post("/assinatura/pagar")
+@login_obrigatorio
+def assinatura_pagar():
+    plano_id = request.form.get("plano")
+    plano = PLANOS.get(plano_id)
+    if not plano or not INFINITEPAY_HANDLE or not session.get("assinante"):
+        abort(400)
+    pedido_id = uuid.uuid4().hex
+    pedido = {"usuario": session["usuario"], "plano": plano_id, "centavos": plano["centavos"],
+              "dias": plano["dias"], "status": "pendente", "criado_em": time.time()}
+    try:
+        gravar_json_versionado(f"pedidos/{pedido_id}.json", pedido, 0)
+        link = criar_checkout(pedido_id, plano, session["usuario"])
+    except Exception:
+        log.exception("Falha ao criar checkout")
+        flash("Não foi possível abrir o pagamento agora. Tente novamente em instantes.", "erro")
+        return redirect(url_for("assinatura"))
+    return redirect(link)
+
+
+@app.get("/assinatura/retorno")
+@login_obrigatorio
+def assinatura_retorno():
+    """A InfinitePay devolve o cliente aqui depois de pagar. Confirmamos já,
+    sem esperar pelo aviso, para o acesso abrir na hora."""
+    pedido_id = request.args.get("order_nsu", "")
+    transacao = request.args.get("transaction_nsu", "")
+    slug = request.args.get("slug") or request.args.get("invoice_slug", "")
+    if pedido_id and transacao and slug:
+        try:
+            resultado = confirmar_pagamento(pedido_id, transacao, slug)
+        except Exception:
+            log.exception("Falha ao confirmar retorno do pedido %s", pedido_id)
+            resultado = "erro"
+        if resultado in ("pago", "ja_pago"):
+            flash("Pagamento confirmado! O seu acesso está liberado. 🎉", "ok")
+            return redirect(url_for("assinatura"))
+    flash("Ainda não recebemos a confirmação do pagamento. Se já pagou, atualize esta página "
+          "em alguns minutos.", "erro")
+    return redirect(url_for("assinatura"))
+
+
+@app.post("/webhooks/infinitepay")
+def webhook_infinitepay():
+    if not hmac.compare_digest(request.args.get("token", ""), token_webhook()):
+        abort(403)
+    dados = request.get_json(silent=True) or {}
+    pedido_id = str(dados.get("order_nsu") or "")
+    transacao = str(dados.get("transaction_nsu") or "")
+    slug = str(dados.get("invoice_slug") or dados.get("slug") or "")
+    if not (pedido_id and transacao and slug):
+        return jsonify(ok=False, erro="dados incompletos"), 200  # nada a repetir
+    try:
+        resultado = confirmar_pagamento(pedido_id, transacao, slug)
+    except Exception:
+        log.exception("Falha ao processar aviso do pedido %s", pedido_id)
+        return jsonify(ok=False), 400  # 400 faz a InfinitePay reenviar
+    log.info("Aviso InfinitePay pedido=%s resultado=%s", pedido_id, resultado)
+    return jsonify(ok=True, resultado=resultado), 200
+
+
+@app.context_processor
+def dados_assinatura():
+    """Aviso de vencimento próximo, mostrado no topo das páginas."""
+    if not session.get("assinante") or not session.get("pago_ate"):
+        return {}
+    restante = session["pago_ate"] - time.time()
+    if 0 < restante <= AVISO_VENCIMENTO_DIAS * DIA:
+        return {"dias_para_vencer": max(1, round(restante / DIA))}
+    return {}
 
 
 @app.get("/")
@@ -572,6 +887,9 @@ def gerar():
         return jsonify(erro="A sua conta já não está ativa. Entre novamente."), 401
     usuario = session["usuario"]
     conta = usuarios[usuario]
+    if not assinatura_ativa(conta):
+        atualizar_sessao_assinatura(conta)
+        return jsonify(erro="A sua assinatura não está ativa. Renove para continuar."), 402
     sem_limite = bool(conta.get("admin"))
     limite = LIMITE_TESTE if conta.get("expira_em") else LIMITE_DIARIO
 

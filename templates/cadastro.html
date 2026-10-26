@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block titulo %}Criar conta - Quizify{% endblock %}
+{% block conteudo %}
+<form method="post" class="space-y-4">
+    <h2 class="text-xl font-bold text-center">✨ Criar conta</h2>
+    <p class="text-sm text-slate-400 text-center">Depois de criar a conta, escolha o plano e pague por Pix ou cartão.</p>
+    <div>
+        <label for="email" class="block text-sm font-medium mb-2 text-slate-300">E-mail</label>
+        <input id="email" name="email" type="email" value="{{ email or '' }}" required autofocus autocomplete="email" autocapitalize="none" maxlength="120"
+               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+    </div>
+    {% for campo, rotulo in [("senha", "Senha (mín. 8 caracteres)"), ("confirmar", "Confirmar senha")] %}
+    <div>
+        <label for="{{ campo }}" class="block text-sm font-medium mb-2 text-slate-300">{{ rotulo }}</label>
+        <input id="{{ campo }}" name="{{ campo }}" type="password" required minlength="8" autocomplete="new-password"
+               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+    </div>
+    {% endfor %}
+    <button class="w-full bg-red-500 hover:bg-red-600 font-bold py-3 rounded-xl transition shadow-lg shadow-red-500/30">Criar conta</button>
+</form>
+<p class="text-sm text-center text-slate-400 mt-6">Já tem conta?
+    <a href="{{ url_for('login') }}" class="text-red-400 font-semibold underline">Entrar</a></p>
+{% endblock %}

@@ -16,6 +16,7 @@
             <nav class="flex justify-center items-center gap-3 mt-3 text-xs text-slate-400">
                 <span>👤 {{ session.usuario }}</span>
                 {% if session.admin %}<a href="{{ url_for('admin') }}" class="hover:text-white underline">Admin</a>{% endif %}
+                {% if session.assinante %}<a href="{{ url_for('assinatura') }}" class="hover:text-white underline">Assinatura</a>{% endif %}
                 <a href="{{ url_for('trocar_senha') }}" class="hover:text-white underline">Senha</a>
                 <form method="post" action="{{ url_for('logout') }}" class="inline">
                     <button class="hover:text-white underline">Sair</button>
@@ -24,6 +25,11 @@
             {% endif %}
         </header>
 
+        {% if dias_para_vencer %}
+        <a href="{{ url_for('assinatura') }}" class="block mb-4 text-sm rounded-xl p-3 bg-amber-900/60 text-amber-200 text-center">
+            ⏳ A sua assinatura vence em {{ dias_para_vencer }} dia{{ 's' if dias_para_vencer > 1 }}. <b class="underline">Renovar agora</b>
+        </a>
+        {% endif %}
         {% with mensagens = get_flashed_messages(with_categories=true) %}
         {% for categoria, texto in mensagens %}
         <p class="mb-4 text-sm rounded-xl p-3 {{ 'bg-red-900/60 text-red-200' if categoria == 'erro' else 'bg-green-900/60 text-green-200' }}">{{ texto }}</p>
