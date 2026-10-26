@@ -2,9 +2,9 @@
 {% block titulo %}Entrar - Quizify{% endblock %}
 {% block conteudo %}
 <form method="post" class="space-y-4">
-    <h2 class="text-xl font-bold text-center">🔐 Acesso restrito</h2>
+    <h2 class="text-xl font-bold text-center">🔐 Entrar</h2>
     <div>
-        <label for="usuario" class="block text-sm font-medium mb-2 text-slate-300">Utilizador</label>
+        <label for="usuario" class="block text-sm font-medium mb-2 text-slate-300">E-mail ou utilizador</label>
         <input id="usuario" name="usuario" value="{{ usuario or '' }}" required autofocus autocomplete="username" autocapitalize="none"
                class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
     </div>
@@ -15,4 +15,6 @@
     </div>
     <button class="w-full bg-red-500 hover:bg-red-600 font-bold py-3 rounded-xl transition shadow-lg shadow-red-500/30">Entrar</button>
 </form>
+<p class="text-sm text-center text-slate-400 mt-6">Ainda não tem conta?
+    <a href="{{ url_for('cadastro') }}" class="text-red-400 font-semibold underline">Crie a sua e assine</a></p>
 {% endblock %}
