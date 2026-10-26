@@ -25,6 +25,8 @@
     button { flex: 1; font: inherit; font-weight: 700; color: #fff; border: 0; border-radius: 12px; padding: 13px; cursor: pointer; background: #334155; }
     button.prim { background: #4f46e5; }
     button:disabled { opacity: .4; cursor: default; }
+    #btn-recomecar { display: block; width: 100%; margin-top: 12px; background: #2563eb; }
+    .oculto { display: none !important; }
 </style>
 </head>
 <body>
@@ -43,29 +45,49 @@
         <button id="btn-ant">◀ Anterior</button>
         <button id="btn-prox" class="prim">Próximo ▶</button>
     </div>
+    <button id="btn-recomecar" class="oculto">Recomeçar em outra ordem 🔀</button>
 </main>
 <script>
 const CARTOES = {{ itens | tojson }};
 const $ = (id) => document.getElementById(id);
+let baralho = CARTOES.slice();   // 1ª passagem na ordem original
 let indice = 0;
+
+// Embaralha (Fisher–Yates) evitando, quando possível, repetir a ordem anterior.
+function embaralhar(lista) {
+    let copia = lista.slice();
+    for (let tentativa = 0; tentativa < 5; tentativa++) {
+        copia = lista.slice();
+        for (let i = copia.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [copia[i], copia[j]] = [copia[j], copia[i]];
+        }
+        if (copia.length < 2 || copia.some((item, i) => item !== lista[i])) break;
+    }
+    return copia;
+}
 
 function mostrar() {
     $('cena').classList.remove('virado');
     // espera o cartão desvirar para não revelar o verso do próximo
     setTimeout(() => {
-        $('frente').textContent = CARTOES[indice].frente;
-        $('verso').textContent = CARTOES[indice].verso;
+        $('frente').textContent = baralho[indice].frente;
+        $('verso').textContent = baralho[indice].verso;
     }, 150);
     $('atual').textContent = indice + 1;
+    const ultimo = indice === baralho.length - 1;
     $('btn-ant').disabled = indice === 0;
-    $('btn-prox').disabled = indice === CARTOES.length - 1;
+    $('btn-prox').disabled = ultimo;
+    $('btn-recomecar').classList.toggle('oculto', !ultimo);
 }
 
 function virar() { $('cena').classList.toggle('virado'); }
 $('cena').onclick = virar;
 $('cena').onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); virar(); } };
 $('btn-ant').onclick = () => { if (indice > 0) { indice--; mostrar(); } };
-$('btn-prox').onclick = () => { if (indice < CARTOES.length - 1) { indice++; mostrar(); } };
+$('btn-prox').onclick = () => { if (indice < baralho.length - 1) { indice++; mostrar(); } };
+// No último cartão: recomeça com os cartões numa ordem nova.
+$('btn-recomecar').onclick = () => { baralho = embaralhar(baralho); indice = 0; mostrar(); };
 
 $('total').textContent = CARTOES.length;
 mostrar();
