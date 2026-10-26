@@ -78,6 +78,31 @@ let acertos = 0;
 let erradas = [];
 let modoRevisao = false;
 
+// Embaralha (Fisher–Yates) evitando, quando possível, repetir a ordem anterior.
+function embaralhar(lista) {
+    let copia = lista.slice();
+    for (let tentativa = 0; tentativa < 5; tentativa++) {
+        copia = lista.slice();
+        for (let i = copia.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [copia[i], copia[j]] = [copia[j], copia[i]];
+        }
+        if (copia.length < 2 || copia.some((item, i) => item !== lista[i])) break;
+    }
+    return copia;
+}
+
+// Troca a ordem das opções e recalcula qual é a correta.
+function embaralharOpcoes(q) {
+    const ordem = embaralhar(q.opcoes.map((_, i) => i));
+    return { ...q, opcoes: ordem.map((i) => q.opcoes[i]), correta: ordem.indexOf(q.correta) };
+}
+
+// Ao refazer, as perguntas e as respostas aparecem numa ordem diferente da anterior.
+function embaralharRodada(lista) {
+    return embaralhar(lista).map(embaralharOpcoes);
+}
+
 function iniciar(lista, revisao) {
     rodada = lista;
     modoRevisao = revisao;
@@ -162,8 +187,8 @@ function finalizar() {
     }
 }
 
-$('btn-erradas').onclick = () => iniciar([...erradas], true);
-$('btn-tudo').onclick = () => iniciar(QUESTOES, false);
+$('btn-erradas').onclick = () => iniciar(embaralharRodada(erradas), true);
+$('btn-tudo').onclick = () => iniciar(embaralharRodada(modoRevisao ? QUESTOES : rodada), false);
 
 // Confetes leves sem biblioteca externa (funciona offline)
 function soltarConfetes() {
