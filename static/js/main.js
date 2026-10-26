@@ -87,6 +87,7 @@
 
             resultado = json;
             mostrarResultado();
+            if (json.item) adicionarRecente(json.item);
         } catch (erro) {
             mostrarStatus(`❌ ${erro.message}`, 'text-red-400');
         } finally {
@@ -107,6 +108,25 @@
         form.classList.add('hidden');
         document.getElementById('resultado').classList.remove('hidden');
         mostrarStatus('');
+    }
+
+    // Coloca o quiz recém-criado no topo de "Seus últimos quizzes" (máx. 5)
+    function adicionarRecente(item) {
+        const lista = document.getElementById('lista-recentes');
+        const novo = document.getElementById('modelo-recente').cloneNode(true);
+        novo.removeAttribute('id');
+        novo.hidden = false;
+        const campo = (nome) => novo.querySelector(`[data-campo="${nome}"]`);
+        campo('titulo').textContent = item.titulo;
+        campo('tipo').textContent = item.tipo === 'quiz' ? '📝 Quiz' : '🃏 Flashcards';
+        campo('total').textContent = item.total;
+        campo('data').textContent = item.data;
+        campo('abrir').href = item.link;
+        campo('baixar').href = `/meus-quizzes/${item.id}/baixar`;
+        novo.querySelector('[data-copiar]').dataset.copiar = item.link;
+        lista.prepend(novo);
+        while (lista.children.length > 5) lista.lastElementChild.remove();
+        document.getElementById('recentes').classList.remove('hidden');
     }
 
     document.getElementById('btn-copiar').addEventListener('click', async (e) => {

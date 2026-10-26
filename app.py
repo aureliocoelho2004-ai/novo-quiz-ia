@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 
 import requests
-from flask import (Flask, abort, flash, g, has_request_context, jsonify, redirect,
+from flask import (Flask, Response, abort, flash, g, has_request_context, jsonify, redirect,
                    render_template, request, session, url_for)
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -327,7 +327,9 @@ def assinatura_paga_agora():
     return bool(conta) and assinatura_ativa(conta)
 
 
-ROTAS_SEM_ASSINATURA = {"assinatura", "assinatura_pagar", "assinatura_retorno", "trocar_senha", "logout"}
+# Com a assinatura vencida a pessoa ainda paga, troca a senha e acede aos quizzes que já criou.
+ROTAS_SEM_ASSINATURA = {"assinatura", "assinatura_pagar", "assinatura_retorno", "trocar_senha", "logout",
+                        "meus_quizzes", "baixar_quiz", "remover_quiz"}
 
 
 def login_obrigatorio(view):
@@ -507,16 +509,65 @@ def nome_seguro(texto):
 
 
 def publicar_firebase(conteudo_html, prefixo):
+    """Devolve (link público, caminho no bucket), ou (None, None) se falhar."""
     try:
-        blob = bucket_firebase().blob(f"quizzes/{prefixo}_{uuid.uuid4().hex[:10]}.html")
+        caminho = f"quizzes/{prefixo}_{uuid.uuid4().hex[:10]}.html"
+        blob = bucket_firebase().blob(caminho)
         blob.cache_control = "public, max-age=3600"
         # charset explícito: sem ele acentos/emojis aparecem corrompidos no Android/iOS
         blob.upload_from_string(conteudo_html.encode("utf-8"), content_type="text/html; charset=utf-8")
         blob.make_public()
-        return blob.public_url
+        return blob.public_url, caminho
     except Exception:
         log.exception("Falha ao publicar no Firebase")
-        return None
+        return None, None
+
+
+# --------------------------------------------------------------------------- #
+# Histórico "Meus quizzes": uma lista por utilizador em historico/<hash>.json,
+# do mais recente para o mais antigo. Remover da lista não apaga o quiz, para
+# os links já enviados aos alunos continuarem a funcionar.
+# --------------------------------------------------------------------------- #
+HISTORICO_MAX = 300
+
+
+def _caminho_historico(usuario):
+    return f"historico/{hashlib.sha256(usuario.encode()).hexdigest()[:32]}.json"
+
+
+def listar_historico(usuario):
+    try:
+        itens, _ = ler_json_versionado(_caminho_historico(usuario))
+        return itens or []
+    except Exception:
+        log.exception("Falha ao ler histórico de %s", usuario)
+        return []
+
+
+def alterar_historico(usuario, alteracao, tentativas=5):
+    from google.api_core.exceptions import PreconditionFailed
+    caminho = _caminho_historico(usuario)
+    for _ in range(tentativas):
+        itens, geracao = ler_json_versionado(caminho)
+        itens = itens or []
+        if alteracao(itens) is False:
+            return False
+        try:
+            gravar_json_versionado(caminho, itens, geracao)
+            return True
+        except PreconditionFailed:
+            continue
+    raise RuntimeError("Muitas gravações simultâneas no histórico")
+
+
+def registrar_no_historico(usuario, item):
+    def acrescentar(itens):
+        itens.insert(0, item)
+        del itens[HISTORICO_MAX:]
+    try:
+        alterar_historico(usuario, acrescentar)
+    except Exception:
+        log.exception("Falha ao gravar histórico de %s", usuario)  # o quiz já foi entregue; só não entra na lista
 
 
 # --------------------------------------------------------------------------- #
@@ -904,7 +955,55 @@ def dados_assinatura():
 @login_obrigatorio
 def index():
     return render_template("index.html", max_arquivos=MAX_ARQUIVOS, max_mb=MAX_TOTAL_MB,
-                           min_itens=MIN_ITENS, max_itens=MAX_ITENS)
+                           min_itens=MIN_ITENS, max_itens=MAX_ITENS,
+                           recentes=listar_historico(session["usuario"])[:5])
+
+
+@app.get("/meus-quizzes")
+@login_obrigatorio
+def meus_quizzes():
+    return render_template("meus_quizzes.html", itens=listar_historico(session["usuario"]))
+
+
+def _item_do_usuario(item_id):
+    item = next((i for i in listar_historico(session["usuario"]) if i.get("id") == item_id), None)
+    if item is None:
+        abort(404)
+    return item
+
+
+@app.get("/meus-quizzes/<item_id>/baixar")
+@login_obrigatorio
+def baixar_quiz(item_id):
+    item = _item_do_usuario(item_id)
+    try:
+        conteudo = bucket_firebase().blob(item["arquivo"]).download_as_bytes()
+    except Exception:
+        log.exception("Falha ao baixar %s", item.get("arquivo"))
+        flash("Não foi possível baixar este quiz agora. Tente novamente.", "erro")
+        return redirect(url_for("meus_quizzes"))
+    return Response(conteudo, mimetype="text/html; charset=utf-8", headers={
+        "Content-Disposition": f'attachment; filename="{nome_seguro(item["titulo"])}.html"'})
+
+
+@app.post("/meus-quizzes/<item_id>/remover")
+@login_obrigatorio
+def remover_quiz(item_id):
+    def remover(itens):
+        restantes = [i for i in itens if i.get("id") != item_id]
+        if len(restantes) == len(itens):
+            return False  # já não estava na lista
+        itens[:] = restantes
+    try:
+        removido = alterar_historico(session["usuario"], remover)
+    except Exception:
+        log.exception("Falha ao remover do histórico")
+        removido = None
+    if removido:
+        flash("Quiz removido da lista. O link continua funcionando para quem já o recebeu.", "ok")
+    elif removido is None:
+        flash("Não foi possível remover agora. Tente novamente.", "erro")
+    return redirect(url_for("meus_quizzes"))
 
 
 @app.get("/health")
@@ -977,12 +1076,18 @@ def gerar():
 
         template = "quiz.html" if tipo == "quiz" else "flashcards.html"
         conteudo_html = render_template(template, titulo=titulo, professor=professor, itens=itens)
-        link = publicar_firebase(conteudo_html, tipo)
+        link, caminho = publicar_firebase(conteudo_html, tipo)
         if not sem_limite:
             registrar_geracao(usuario)
+        item = None
+        if link:
+            item = {"id": uuid.uuid4().hex[:12], "titulo": titulo, "tipo": tipo, "total": len(itens),
+                    "link": link, "arquivo": caminho, "criado_em": time.time()}
+            registrar_no_historico(usuario, item)
 
         return jsonify(html=conteudo_html, link=link, total=len(itens),
-                       nome_arquivo=f"{nome_seguro(titulo)}.html")
+                       nome_arquivo=f"{nome_seguro(titulo)}.html",
+                       item=item and {**item, "data": data_hora(item["criado_em"])})
 
 
 @app.errorhandler(RequestEntityTooLarge)

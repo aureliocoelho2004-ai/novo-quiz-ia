@@ -65,3 +65,11 @@ flask --app app run --debug
 4. Os dias somam-se ao que já existe; sem renovação, o acesso fica bloqueado até novo pagamento.
 5. No `/admin`, cada assinante mostra a validade e há o botão "Liberar +30 dias" para casos de suporte.
    Se um pagamento for confirmado mas não creditado, o log do Render mostra `PAGAMENTO SEM CRÉDITO`.
+
+## Meus quizzes
+
+Cada quiz ou flashcard gerado com link fica guardado na conta, em `historico/<hash do utilizador>.json` no Firebase
+(até 300, do mais recente para o mais antigo). A página `/meus-quizzes` permite abrir, copiar o link, baixar o HTML
+e remover da lista; os 5 mais recentes aparecem também na página inicial. Remover da lista não apaga o arquivo,
+para os links já enviados aos alunos continuarem a funcionar. Assinantes com a assinatura vencida continuam a ver
+os seus quizzes.

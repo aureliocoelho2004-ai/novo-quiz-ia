@@ -1,0 +1,25 @@
+{#- Um quiz do histórico. Usado em "Meus quizzes" e nos recentes da página inicial;
+    o main.js clona o #modelo-recente com a mesma estrutura (data-campo). -#}
+<li class="bg-slate-900 border border-slate-700 rounded-xl p-3 space-y-2" {% if modelo %}id="modelo-recente" hidden{% endif %}>
+    <div class="flex justify-between items-start gap-2">
+        <div class="min-w-0">
+            <p class="font-semibold truncate" data-campo="titulo">{{ item.titulo }}</p>
+            <p class="text-xs text-slate-400">
+                <span data-campo="tipo">{{ '📝 Quiz' if item.tipo == 'quiz' else '🃏 Flashcards' }}</span> ·
+                <span data-campo="total">{{ item.total }}</span> itens ·
+                <span data-campo="data">{{ item.criado_em | data_hora if item.criado_em else '' }}</span>
+            </p>
+        </div>
+    </div>
+    <div class="grid grid-cols-3 gap-2 text-sm font-semibold">
+        <a data-campo="abrir" href="{{ item.link }}" target="_blank" rel="noopener" class="text-center bg-blue-600 hover:bg-blue-700 rounded-lg py-2">Abrir</a>
+        <button type="button" data-copiar="{{ item.link }}" class="bg-slate-700 hover:bg-slate-600 rounded-lg py-2">Copiar link</button>
+        <a data-campo="baixar" href="{{ url_for('baixar_quiz', item_id=item.id) if item.id else '#' }}" class="text-center bg-emerald-700 hover:bg-emerald-600 rounded-lg py-2">Baixar</a>
+    </div>
+    {% if removivel %}
+    <form method="post" action="{{ url_for('remover_quiz', item_id=item.id) }}"
+          onsubmit="return confirm('Remover este quiz da lista? O link continua funcionando para quem já o recebeu.')">
+        <button class="w-full text-xs text-slate-400 hover:text-red-400 underline">Remover da lista</button>
+    </form>
+    {% endif %}
+</li>

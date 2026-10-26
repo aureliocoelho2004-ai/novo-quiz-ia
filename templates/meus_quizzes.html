@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block titulo %}Meus quizzes - Quizify{% endblock %}
+{% block conteudo %}
+<section class="space-y-4">
+    <h2 class="text-xl font-bold text-center">📚 Meus quizzes</h2>
+    {% if itens %}
+    <p class="text-sm text-slate-400 text-center">{{ itens | length }} conteúdo{{ 's' if itens | length > 1 }} criado{{ 's' if itens | length > 1 }}. Os links ficam sempre disponíveis.</p>
+    <ul class="space-y-3">
+        {% for item in itens %}{% with removivel = true %}{% include "_item_quiz.html" %}{% endwith %}{% endfor %}
+    </ul>
+    {% else %}
+    <p class="text-sm text-slate-400 text-center">Você ainda não criou nenhum quiz. Os próximos que criar aparecem aqui.</p>
+    {% endif %}
+    <a href="{{ url_for('index') }}" class="block text-center bg-red-500 hover:bg-red-600 font-bold py-3 rounded-xl">Criar novo ✨</a>
+</section>
+{% endblock %}
