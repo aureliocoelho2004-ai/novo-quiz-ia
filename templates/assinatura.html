@@ -19,7 +19,7 @@
         {% elif conta.pago_ate %}
         <div class="rounded-xl p-4 bg-red-900/50 text-center">
             <p class="font-bold text-red-300">⛔ Assinatura vencida</p>
-            <p class="text-sm text-slate-200 mt-1">Venceu em {{ conta.pago_ate | data_hora }}. Renove para voltar a criar quizzes.</p>
+            <p class="text-sm text-slate-200 mt-1">Venceu em {{ conta.pago_ate | data_hora }}. Renove para voltar a criar quizzes{% if total_quizzes %} e recuperar o acesso aos seus <b>{{ total_quizzes }} quiz{{ 'zes' if total_quizzes > 1 }}</b> salvos{% endif %}.</p>
         </div>
         {% else %}
         <p class="text-sm text-center text-slate-300">Escolha um plano para liberar o seu acesso. Pagamento por Pix ou cartão, com liberação imediata.</p>
