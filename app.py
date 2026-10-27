@@ -289,7 +289,7 @@ def verificar_limite(usuario, limite):
     espera = INTERVALO_SEGUNDOS - (time.time() - uso.get("ultimo", 0))
     if espera > 0:
         return f"⏳ Aguarde {int(espera) + 1}s para criar outro conteúdo."
-    if uso["total"] >= limite:
+    if limite is not None and uso["total"] >= limite:
         return f"⚠️ Limite de {limite} conteúdos por dia atingido. Tente novamente amanhã."
 
     uso["ultimo"] = time.time()  # marca já, para impedir pedidos simultâneos
@@ -1199,6 +1199,39 @@ def remover_quiz(item_id):
     return redirect(url_for("meus_quizzes"))
 
 
+# --------------------------------------------------------------------------- #
+# Demonstração para a landing page (quizzify.com.br/#demo): o mesmo quiz.html
+# que os professores recebem, com 5 perguntas fixas, aberto sem login.
+# --------------------------------------------------------------------------- #
+LANDING_URL = os.environ.get("LANDING_URL", "https://quizzify.com.br").rstrip("/")
+QUIZ_DEMO = [
+    {"pergunta": "Qual organela da célula é responsável pela respiração celular, que produz a maior parte da energia (ATP)?",
+     "opcoes": ["Ribossomo", "Mitocôndria", "Complexo golgiense", "Lisossomo"], "correta": 1,
+     "explicacao": "A mitocôndria realiza a respiração celular aeróbica, produzindo a maior parte do ATP usado pela célula."},
+    {"pergunta": "Em que ano foi promulgada a Constituição Federal brasileira atual, conhecida como \"Constituição Cidadã\"?",
+     "opcoes": ["1946", "1967", "1988", "1991"], "correta": 2,
+     "explicacao": "A Constituição atual foi promulgada em 5 de outubro de 1988, após o fim da ditadura militar."},
+    {"pergunta": "Qual gás é o principal responsável pela intensificação do efeito estufa causada pela atividade humana?",
+     "opcoes": ["Oxigênio (O₂)", "Nitrogênio (N₂)", "Dióxido de carbono (CO₂)", "Hélio (He)"], "correta": 2,
+     "explicacao": "A queima de combustíveis fósseis e o desmatamento aumentam a concentração de CO₂, que retém calor na atmosfera."},
+    {"pergunta": "Um produto custa R$ 80,00 e está com 15% de desconto. Qual é o preço final?",
+     "opcoes": ["R$ 65,00", "R$ 68,00", "R$ 70,00", "R$ 72,00"], "correta": 1,
+     "explicacao": "15% de 80 é 12 (0,15 × 80). Então 80 − 12 = R$ 68,00."},
+    {"pergunta": "Quem é o autor do romance \"Dom Casmurro\", marco do Realismo brasileiro?",
+     "opcoes": ["José de Alencar", "Machado de Assis", "Aluísio Azevedo", "Graciliano Ramos"], "correta": 1,
+     "explicacao": "\"Dom Casmurro\" (1899), de Machado de Assis, é narrado por Bentinho e famoso pela dúvida sobre Capitu."},
+]
+
+
+@app.get("/demo")
+def demo():
+    itens = [{"id": i, **q} for i, q in enumerate(QUIZ_DEMO)]
+    resposta = Response(render_template("quiz.html", titulo="Mini-quiz ENEM", professor="", itens=itens,
+                                        cta_link=LANDING_URL + "/#precos"))
+    resposta.headers["Cache-Control"] = "public, max-age=600"
+    return resposta
+
+
 @app.get("/health")
 def health():
     """Rota leve para o cron-job manter o serviço acordado no Render."""
@@ -1220,7 +1253,12 @@ def gerar():
         atualizar_sessao_assinatura(conta)
         return jsonify(erro="A sua assinatura não está ativa. Renove para continuar."), 402
     sem_limite = bool(conta.get("admin"))
-    limite = LIMITE_TESTE if conta.get("expira_em") else LIMITE_DIARIO
+    if conta.get("expira_em"):
+        limite = LIMITE_TESTE
+    elif conta.get("assinante") and conta.get("plano") == "anual":
+        limite = None  # plano anual: geração ilimitada (continua a espera entre gerações)
+    else:
+        limite = LIMITE_DIARIO
 
     arquivos = [a for a in request.files.getlist("arquivos") if a and a.filename]
     tipo = request.form.get("tipo", "quiz")
