@@ -18,6 +18,7 @@
     const foco = HTMLElement.prototype.focus;
     HTMLElement.prototype.focus = function () { foco.call(this, { preventScroll: true }); };
 
+    window.tocarCelebracao = () => {};   // o "vídeo" da landing é sempre sem som
     const dedo = document.getElementById('dedo');
     const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 

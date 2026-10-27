@@ -1309,6 +1309,17 @@ def service_worker():
     return resposta
 
 
+@app.after_request
+def cache_arquivos_fixos(resposta):
+    """Fontes e ícones quase nunca mudam: o navegador (e a Cloudflare do Render)
+    guardam-nos, e as páginas abrem mais rápido na visita seguinte."""
+    if request.path.startswith("/static/fonts/"):
+        resposta.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    elif request.path.startswith("/static/icons/"):
+        resposta.headers["Cache-Control"] = "public, max-age=604800"
+    return resposta
+
+
 @app.get("/health")
 def health():
     """Rota leve para o cron-job manter o serviço acordado no Render."""

@@ -14,10 +14,17 @@
 <meta name="theme-color" content="#000000">
 <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/favicon-32.png') }}">
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+{#- Fontes servidas pelo próprio app (sem ir ao Google): abre mais rápido vindo de anúncios. #}
+<link rel="preload" href="{{ url_for('static', filename='fonts/barlow-condensed-800.woff2') }}" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="{{ url_for('static', filename='fonts/plus-jakarta-sans-400.woff2') }}" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="{{ url_for('static', filename='fonts/plus-jakarta-sans-800.woff2') }}" as="font" type="font/woff2" crossorigin>
 <style>
+    @font-face { font-family: "Barlow Condensed"; font-weight: 800; font-display: swap;
+                 src: url("{{ url_for('static', filename='fonts/barlow-condensed-800.woff2') }}") format("woff2"); }
+    @font-face { font-family: "Plus Jakarta Sans"; font-weight: 400; font-display: swap;
+                 src: url("{{ url_for('static', filename='fonts/plus-jakarta-sans-400.woff2') }}") format("woff2"); }
+    @font-face { font-family: "Plus Jakarta Sans"; font-weight: 800; font-display: swap;
+                 src: url("{{ url_for('static', filename='fonts/plus-jakarta-sans-800.woff2') }}") format("woff2"); }
     :root {
         --preto: #000;
         --roxo: #5920ab;
@@ -48,6 +55,7 @@
     }
     .marca { grid-column: 1 / -1; font-weight: 800; font-size: clamp(20px, 3vh, 26px); letter-spacing: -.02em; }
     .marca span { color: var(--lima); }
+    .marca .dado { color: inherit; }
 
     .texto { position: relative; z-index: 2; align-self: center; display: flex; flex-direction: column; gap: clamp(12px, 2.4vh, 24px); }
     h1 {
@@ -67,7 +75,7 @@
         text-decoration: none; color: var(--branco); font-weight: 800; font-size: clamp(16px, 2.2vh, 19px);
         border: 2px solid var(--roxo-claro); transition: transform .15s ease, background-color .15s ease;
     }
-    .plano small { font-weight: 600; font-size: clamp(13px, 1.7vh, 15px); color: var(--cinza); }
+    .plano small { font-weight: 400; font-size: clamp(13px, 1.7vh, 15px); color: var(--cinza); }
     .plano.anual { background: var(--roxo); border-color: var(--roxo); }
     .plano.anual small { color: #e6dcfa; }
     .plano.anual b { color: var(--lima); font-weight: 800; }
@@ -128,7 +136,7 @@
 </head>
 <body>
 <div class="pagina">
-    <div class="marca" aria-label="Quizify">quizify<span>.</span></div>
+    <div class="marca" aria-label="Quizify"><span class="dado" aria-hidden="true">🎲</span> quizify<span>.</span></div>
 
     <figure class="vitrine" aria-hidden="true">
         <div class="celular"><div class="tela">
@@ -164,7 +172,10 @@
         const tela = document.querySelector('.tela');
         const quadro = document.getElementById('video-quiz');
         const parado = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        quadro.src = '{{ url_for('demo_video') }}' + (parado ? '?parado=1' : '');
+        const carregar = () => { quadro.src = '{{ url_for('demo_video') }}' + (parado ? '?parado=1' : ''); };
+        // o "vídeo" só começa depois que a página já apareceu, para não atrasar a abertura
+        if (document.readyState === 'complete') setTimeout(carregar, 150);
+        else window.addEventListener('load', () => setTimeout(carregar, 150), { once: true });
         const ajustar = () => {
             const escala = tela.clientWidth / 340;
             quadro.style.transform = `scale(${escala})`;
