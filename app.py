@@ -338,7 +338,8 @@ def login_obrigatorio(view):
         if not session.get("usuario"):
             if request.path.startswith("/api/"):
                 return jsonify(erro="Sessão expirada. Entre novamente."), 401
-            return redirect(url_for("login", proximo=request.path))
+            # full_path mantém os parâmetros (ex.: retorno do pagamento da InfinitePay)
+            return redirect(url_for("login", proximo=request.full_path.rstrip("?")))
         if session.get("expira_em") and time.time() >= session["expira_em"]:
             session.clear()
             flash("O seu acesso de teste expirou. Fale com o administrador para continuar.", "erro")
@@ -437,7 +438,10 @@ def preparar_conteudo(arquivos):
         elif ext == ".pptx":
             textos.append(extrair_pptx(dados))
         elif ext in EXTENSOES_IMG or (arq.mimetype or "").startswith("image/"):
-            dados, mime = reduzir_imagem(dados, arq.mimetype or MIME_IMG.get(ext, "image/jpeg"))
+            # Chrome/Windows envia HEIC como "application/octet-stream", que a IA recusa:
+            # nesse caso o tipo vem da extensão.
+            mime = arq.mimetype if (arq.mimetype or "").startswith("image/") else MIME_IMG.get(ext, "image/jpeg")
+            dados, mime = reduzir_imagem(dados, mime)
             partes.append(types.Part.from_bytes(data=dados, mime_type=mime))
     return "\n\n".join(t for t in textos if t.strip())[:MAX_CARACTERES_TEXTO], partes
 
@@ -483,21 +487,27 @@ def chamar_gemini(prompt, texto, partes):
 def normalizar_quiz(itens, n):
     quiz = []
     for item in itens:
-        opcoes = [str(o).strip() for o in item.get("opcoes", []) if str(o).strip()]
+        if not isinstance(item, dict) or not isinstance(item.get("opcoes"), list):
+            continue  # um item mal formado não derruba o quiz inteiro
         try:
             correta = int(item.get("correta", item.get("resposta_correta", -1)))
         except (TypeError, ValueError):
             continue
-        if not item.get("pergunta") or len(opcoes) < 2 or not 0 <= correta < len(opcoes):
+        # Remove opções vazias recalculando o índice da correta (antes ele deslocava
+        # e o quiz marcava como certa a opção errada).
+        validas = [(i, str(o).strip()) for i, o in enumerate(item["opcoes"]) if str(o).strip()]
+        novos = [i for i, _ in validas]
+        opcoes = [texto for _, texto in validas]
+        if not item.get("pergunta") or len(opcoes) < 2 or correta not in novos:
             continue
         quiz.append({"id": len(quiz), "pergunta": str(item["pergunta"]).strip(), "opcoes": opcoes,
-                     "correta": correta, "explicacao": str(item.get("explicacao", "")).strip()})
+                     "correta": novos.index(correta), "explicacao": str(item.get("explicacao", "")).strip()})
     return quiz[:n]
 
 
 def normalizar_flash(itens, n):
     return [{"frente": str(i["frente"]).strip(), "verso": str(i["verso"]).strip()}
-            for i in itens if i.get("frente") and i.get("verso")][:n]
+            for i in itens if isinstance(i, dict) and i.get("frente") and i.get("verso")][:n]
 
 
 # --------------------------------------------------------------------------- #
