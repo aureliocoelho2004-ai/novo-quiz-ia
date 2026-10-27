@@ -1242,6 +1242,12 @@ QUIZ_VIDEO = [
 ]
 
 
+# Muda sempre que o quiz ou o "vídeo" mudam: o navegador não reaproveita uma versão antiga.
+VERSAO_VIDEO = hashlib.sha256(b"".join(
+    open(os.path.join(app.root_path, "templates", nome), "rb").read()
+    for nome in ("quiz.html", "_quiz_autoplay.html"))).hexdigest()[:8]
+
+
 @app.get("/demo/video")
 def demo_video():
     """O quiz real jogando sozinho, em loop, dentro do celular da landing /assine."""
@@ -1256,7 +1262,8 @@ def demo_video():
 def assine():
     """Landing de uma tela só (anúncios): planos anual e mensal."""
     economia = PLANOS["mensal"]["centavos"] * 12 - PLANOS["anual"]["centavos"]
-    resposta = Response(render_template("assine.html", planos=PLANOS, economia=economia))
+    resposta = Response(render_template("assine.html", planos=PLANOS, economia=economia,
+                                        versao_video=VERSAO_VIDEO))
     resposta.headers["Cache-Control"] = "public, max-age=600"
     return resposta
 

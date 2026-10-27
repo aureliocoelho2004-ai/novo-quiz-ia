@@ -172,7 +172,7 @@
         const tela = document.querySelector('.tela');
         const quadro = document.getElementById('video-quiz');
         const parado = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-        const carregar = () => { quadro.src = '{{ url_for('demo_video') }}' + (parado ? '?parado=1' : ''); };
+        const carregar = () => { quadro.src = '{{ url_for('demo_video', v=versao_video) }}' + (parado ? '&parado=1' : ''); };
         // o "vídeo" só começa depois que a página já apareceu, para não atrasar a abertura
         if (document.readyState === 'complete') setTimeout(carregar, 150);
         else window.addEventListener('load', () => setTimeout(carregar, 150), { once: true });
