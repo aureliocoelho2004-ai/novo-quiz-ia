@@ -838,12 +838,19 @@ EMAIL_VALIDO = re.compile(r"[^@\s]+@[^@\s]+\.[a-z]{2,}")
 _cadastros = {}
 
 
+def plano_escolhido():
+    """Plano vindo da landing page (?plano=mensal|anual), ou None."""
+    plano = (request.values.get("plano") or "").strip().lower()
+    return plano if plano in PLANOS else None
+
+
 @app.route("/cadastro", methods=["GET", "POST"])
 def cadastro():
+    plano_id = plano_escolhido()
     if session.get("usuario"):
-        return redirect(url_for("index"))
+        return redirect(url_for("assinatura", plano=plano_id) if plano_id else url_for("index"))
     if request.method == "GET":
-        return render_template("cadastro.html")
+        return render_template("cadastro.html", plano_id=plano_id, planos=PLANOS)
 
     email = request.form.get("email", "").strip().lower()
     senha = request.form.get("senha", "")
@@ -874,17 +881,24 @@ def cadastro():
         except Exception:
             log.exception("Falha ao criar conta")
             flash("Não foi possível criar a conta agora. Tente novamente.", "erro")
-            return render_template("cadastro.html", email=email), 503
+            return render_template("cadastro.html", email=email, plano_id=plano_id, planos=PLANOS), 503
         if criada is False:
             flash("Já existe uma conta com este e-mail. Entre com a sua senha.", "erro")
-            return redirect(url_for("login"))
+            return redirect(url_for("login", proximo=url_for("assinatura", plano=plano_id) if plano_id else None))
         registrar_tentativa(_cadastros, ip, agora)
         session.clear()
         session.permanent = True
         session.update(usuario=email, admin=False, trocar_senha=False, expira_em=None)
         atualizar_sessao_assinatura(nova)
-        return redirect(url_for("assinatura"))
-    return render_template("cadastro.html", email=email), 400
+        # Veio da landing com um plano escolhido: vai direto para o pagamento dele.
+        if plano_id and INFINITEPAY_HANDLE:
+            try:
+                return redirect(iniciar_checkout(plano_id))
+            except Exception:
+                log.exception("Falha ao criar checkout após cadastro")
+                flash("Conta criada! Não foi possível abrir o pagamento agora; tente novamente abaixo.", "erro")
+        return redirect(url_for("assinatura", plano=plano_id))
+    return render_template("cadastro.html", email=email, plano_id=plano_id, planos=PLANOS), 400
 
 
 @app.get("/assinatura")
@@ -895,22 +909,28 @@ def assinatura():
         atualizar_sessao_assinatura(conta)
     return render_template("assinatura.html", conta=conta or {}, planos=PLANOS, agora=time.time(),
                            pagamentos_ativos=bool(INFINITEPAY_HANDLE),
-                           total_quizzes=len(listar_historico(session["usuario"])))
+                           total_quizzes=len(listar_historico(session["usuario"])),
+                           destaque=plano_escolhido() or "anual")
+
+
+def iniciar_checkout(plano_id):
+    """Cria o pedido e devolve o link de pagamento da InfinitePay."""
+    plano = PLANOS[plano_id]
+    pedido_id = uuid.uuid4().hex
+    pedido = {"usuario": session["usuario"], "plano": plano_id, "centavos": plano["centavos"],
+              "dias": plano["dias"], "status": "pendente", "criado_em": time.time()}
+    gravar_json_versionado(f"pedidos/{pedido_id}.json", pedido, 0)
+    return criar_checkout(pedido_id, plano, session["usuario"])
 
 
 @app.post("/assinatura/pagar")
 @login_obrigatorio
 def assinatura_pagar():
     plano_id = request.form.get("plano")
-    plano = PLANOS.get(plano_id)
-    if not plano or not INFINITEPAY_HANDLE or not session.get("assinante"):
+    if plano_id not in PLANOS or not INFINITEPAY_HANDLE or not session.get("assinante"):
         abort(400)
-    pedido_id = uuid.uuid4().hex
-    pedido = {"usuario": session["usuario"], "plano": plano_id, "centavos": plano["centavos"],
-              "dias": plano["dias"], "status": "pendente", "criado_em": time.time()}
     try:
-        gravar_json_versionado(f"pedidos/{pedido_id}.json", pedido, 0)
-        link = criar_checkout(pedido_id, plano, session["usuario"])
+        link = iniciar_checkout(plano_id)
     except Exception:
         log.exception("Falha ao criar checkout")
         flash("Não foi possível abrir o pagamento agora. Tente novamente em instantes.", "erro")
@@ -957,6 +977,135 @@ def webhook_infinitepay():
         return jsonify(ok=False), 400  # 400 faz a InfinitePay reenviar
     log.info("Aviso InfinitePay pedido=%s resultado=%s", pedido_id, resultado)
     return jsonify(ok=True, resultado=resultado), 200
+
+
+# --------------------------------------------------------------------------- #
+# Lembretes de renovação por e-mail (Brevo)
+# Um cron-job chama /tarefas/lembretes?token=... uma vez por dia. Cada assinante
+# recebe no máximo um e-mail "vence em breve" (últimos 5 dias) e um "venceu"
+# (até 3 dias depois) por período pago; renovar zera o controle.
+# --------------------------------------------------------------------------- #
+BREVO_API = "https://api.brevo.com/v3/smtp/email"
+EMAIL_REMETENTE = os.environ.get("EMAIL_REMETENTE", "").strip()
+EMAIL_REMETENTE_NOME = os.environ.get("EMAIL_REMETENTE_NOME", "Quizify").strip()
+JANELA_VENCIDA_DIAS = 3
+
+
+def enviar_email(para, assunto, html_corpo):
+    resposta = requests.post(BREVO_API, timeout=15, headers={
+        "api-key": obter_segredo("BREVO_API_KEY"), "accept": "application/json",
+        "content-type": "application/json"}, json={
+        "sender": {"name": EMAIL_REMETENTE_NOME, "email": EMAIL_REMETENTE},
+        "to": [{"email": para}], "subject": assunto, "htmlContent": html_corpo,
+        "tags": ["lembrete-renovacao"]})
+    if resposta.status_code not in (200, 201, 202):
+        raise RuntimeError(f"Brevo devolveu {resposta.status_code}: {resposta.text[:300]}")
+
+
+def email_lembrete(etapa, conta, total_quizzes):
+    """Devolve (assunto, html) do lembrete."""
+    plano = PLANOS.get(conta.get("plano"), {}).get("nome", "")
+    quando = data_hora(conta["pago_ate"])
+    link = url_publica("assinatura")
+    if etapa == "antes":
+        dias = max(1, round((conta["pago_ate"] - time.time()) / DIA))
+        assunto = f"Sua assinatura do Quizify vence em {dias} dia{'s' if dias > 1 else ''}"
+        titulo = "⏳ Sua assinatura está perto de vencer"
+        texto = (f"Sua assinatura{' do plano ' + plano if plano else ''} vence em <b>{quando}</b>. "
+                 "Renove agora para continuar criando quizzes sem interrupção — "
+                 "os dias que ainda faltam são somados ao novo período.")
+    else:
+        assunto = "Sua assinatura do Quizify venceu"
+        titulo = "⛔ Sua assinatura venceu"
+        salvos = (f" Seus <b>{total_quizzes} quiz{'zes' if total_quizzes > 1 else ''}</b> continuam guardados"
+                  " e voltam a ficar disponíveis assim que renovar.") if total_quizzes else ""
+        texto = f"Sua assinatura venceu em <b>{quando}</b> e o acesso foi pausado.{salvos}"
+    corpo = f"""<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;color:#1e293b">
+<h1 style="color:#ef4444;font-size:24px;margin:0 0 16px">🎲 Quizify</h1>
+<h2 style="font-size:18px;margin:0 0 12px">{titulo}</h2>
+<p style="font-size:15px;line-height:1.5">{texto}</p>
+<p style="text-align:center;margin:28px 0"><a href="{link}" style="background:#ef4444;color:#fff;text-decoration:none;
+font-weight:bold;padding:14px 28px;border-radius:12px;display:inline-block">Renovar assinatura</a></p>
+<p style="font-size:13px;color:#64748b">Pagamento por Pix ou cartão, com liberação imediata.<br>
+Se já renovou, pode ignorar este e-mail.</p></div>"""
+    return assunto, corpo
+
+
+def etapa_lembrete(conta, agora):
+    """Qual lembrete esta conta deve receber agora (ou None)."""
+    pago_ate = conta.get("pago_ate") or 0
+    if not conta.get("assinante") or not pago_ate:
+        return None
+    restante = pago_ate - agora
+    if 0 < restante <= AVISO_VENCIMENTO_DIAS * DIA:
+        etapa = "antes"
+    elif -JANELA_VENCIDA_DIAS * DIA < restante <= 0:
+        etapa = "vencida"
+    else:
+        return None
+    registro = conta.get("lembretes") or {}
+    if registro.get("ref") == pago_ate and etapa in registro.get("enviados", []):
+        return None
+    return etapa
+
+
+@app.route("/tarefas/lembretes", methods=["GET", "POST"])
+def tarefa_lembretes():
+    token = os.environ.get("LEMBRETES_TOKEN", "")
+    if not token:
+        return jsonify(erro="LEMBRETES_TOKEN não configurado"), 503
+    if not hmac.compare_digest(request.args.get("token", ""), token):
+        abort(403)
+    if not os.environ.get("BREVO_API_KEY") or not EMAIL_REMETENTE:
+        return jsonify(erro="BREVO_API_KEY ou EMAIL_REMETENTE não configurados"), 503
+
+    # ?teste=email@exemplo.com envia um lembrete de exemplo, sem mexer em contas
+    if (teste := request.args.get("teste", "").strip()):
+        exemplo = {"pago_ate": time.time() + 3 * DIA, "plano": "mensal"}
+        try:
+            enviar_email(teste, *email_lembrete("antes", exemplo, 0))
+        except Exception as erro:
+            log.exception("Falha no e-mail de teste")
+            return jsonify(ok=False, erro=str(erro)), 502
+        return jsonify(ok=True, enviado_para=teste)
+
+    try:
+        usuarios = carregar_usuarios(estrito=True)
+    except FalhaUsuarios:
+        return jsonify(erro="Falha ao ler utilizadores"), 503
+
+    agora, enviados, falhas = time.time(), [], 0
+    for nome, conta in usuarios.items():
+        etapa = etapa_lembrete(conta, agora)
+        if not etapa or "@" not in nome:
+            continue
+        total = len(listar_historico(nome)) if etapa == "vencida" else 0
+        try:
+            enviar_email(nome, *email_lembrete(etapa, conta, total))
+            enviados.append((nome, etapa, conta["pago_ate"]))
+        except Exception:
+            log.exception("Falha ao enviar lembrete '%s' para %s", etapa, nome)
+            falhas += 1
+
+    def marcar(usuarios):
+        for nome, etapa, ref in enviados:
+            conta = usuarios.get(nome)
+            if not conta or conta.get("pago_ate") != ref:
+                continue  # renovou entretanto: o controle recomeça
+            registro = conta.get("lembretes") or {}
+            if registro.get("ref") != ref:
+                registro = {"ref": ref, "enviados": []}
+            if etapa not in registro["enviados"]:
+                registro["enviados"].append(etapa)
+            conta["lembretes"] = registro
+
+    if enviados:
+        try:
+            alterar_usuarios(marcar)
+        except Exception:
+            log.exception("Lembretes enviados mas não marcados; podem repetir amanhã")
+    log.info("Lembretes: %s enviados, %s falhas", len(enviados), falhas)
+    return jsonify(enviados=len(enviados), falhas=falhas)
 
 
 @app.context_processor
