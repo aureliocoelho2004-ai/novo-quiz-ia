@@ -1232,6 +1232,15 @@ def demo():
     return resposta
 
 
+@app.get("/assine")
+def assine():
+    """Landing de uma tela só (anúncios): planos anual e mensal."""
+    economia = PLANOS["mensal"]["centavos"] * 12 - PLANOS["anual"]["centavos"]
+    resposta = Response(render_template("assine.html", planos=PLANOS, economia=economia))
+    resposta.headers["Cache-Control"] = "public, max-age=600"
+    return resposta
+
+
 # --------------------------------------------------------------------------- #
 # App instalável (PWA): ícone na tela inicial do celular, abre em tela cheia.
 # O manifesto e o service worker ficam na raiz para valerem para o site todo.

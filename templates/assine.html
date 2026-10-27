@@ -1,0 +1,180 @@
+{%- set anual = planos.anual -%}
+{%- set mensal = planos.mensal -%}
+{%- macro reais(c) -%}{{ '%.2f' | format(c / 100) | replace('.', ',') | replace(',00', '') }}{%- endmacro -%}
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Quizify: seu material vira quiz em segundos</title>
+<meta name="description" content="Envie PDF, Word, PowerPoint ou foto do caderno e a IA cria quizzes e flashcards prontos. Plano anual por R$ {{ reais(anual.centavos) }} ou mensal por R$ {{ reais(mensal.centavos) }}.">
+<meta property="og:title" content="Quizify: seu material vira quiz em segundos">
+<meta property="og:description" content="PDF, Word, PowerPoint ou foto do caderno viram quizzes e flashcards com IA.">
+<meta property="og:image" content="{{ url_for('static', filename='icons/icon-512.png', _external=True) }}">
+<meta name="theme-color" content="#000000">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/favicon-32.png') }}">
+<link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@700;800&family=Plus+Jakarta+Sans:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+    :root {
+        --preto: #000;
+        --roxo: #5920ab;
+        --roxo-claro: #a47cf0;
+        --lima: #c1fc38;
+        --branco: #fff;
+        --cinza: #a39cb0;
+        --tela: #1e293b;
+        --opcao: #334155;
+    }
+    * { box-sizing: border-box; margin: 0; }
+    html, body { height: 100%; }
+    body {
+        background: var(--preto); color: var(--branco);
+        font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+        overflow: hidden;                       /* uma tela só, sem rolagem */
+        -webkit-font-smoothing: antialiased;
+    }
+    .pagina {
+        height: 100vh; height: 100dvh; overflow: hidden;
+        display: grid;
+        grid-template-columns: minmax(0, .85fr) minmax(0, 1.15fr);
+        grid-template-rows: auto 1fr;
+        column-gap: clamp(24px, 5vw, 80px);
+        padding: clamp(16px, 3.2vh, 40px) clamp(20px, 6vw, 96px);
+        padding-bottom: max(clamp(16px, 3.2vh, 40px), env(safe-area-inset-bottom));
+        max-width: 1320px; margin: 0 auto;
+    }
+    .marca { grid-column: 1 / -1; font-weight: 800; font-size: clamp(20px, 3vh, 26px); letter-spacing: -.02em; }
+    .marca span { color: var(--lima); }
+
+    .texto { align-self: center; display: flex; flex-direction: column; gap: clamp(12px, 2.4vh, 24px); }
+    h1 {
+        font-family: "Barlow Condensed", sans-serif; font-weight: 800;
+        font-size: clamp(44px, min(7vw, 11vh), 112px);
+        line-height: .92; letter-spacing: -.01em; text-wrap: balance;
+    }
+    .sub { font-size: clamp(15px, 2.1vh, 19px); line-height: 1.5; color: #d9d3e3; max-width: 34em; }
+    .fatos { list-style: none; padding: 0; display: grid; gap: clamp(4px, 1vh, 10px); font-size: clamp(14px, 1.9vh, 17px); color: var(--cinza); }
+    .fatos li { display: flex; gap: 10px; align-items: baseline; }
+    .fatos li::before { content: "✓"; color: var(--lima); font-weight: 800; }
+
+    .planos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: clamp(4px, 1vh, 12px); }
+    .plano {
+        display: flex; flex-direction: column; justify-content: center; gap: 2px;
+        min-height: 64px; padding: clamp(10px, 1.8vh, 16px) 20px; border-radius: 14px;
+        text-decoration: none; color: var(--branco); font-weight: 800; font-size: clamp(16px, 2.2vh, 19px);
+        border: 2px solid var(--roxo-claro); transition: transform .15s ease, background-color .15s ease;
+    }
+    .plano small { font-weight: 600; font-size: clamp(13px, 1.7vh, 15px); color: var(--cinza); }
+    .plano.anual { background: var(--roxo); border-color: var(--roxo); }
+    .plano.anual small { color: #e6dcfa; }
+    .plano.anual b { color: var(--lima); font-weight: 800; }
+    .plano:hover { transform: translateY(-2px); }
+    .plano.mensal:hover { background: rgba(164, 124, 240, .12); }
+    .plano:focus-visible { outline: 3px solid var(--lima); outline-offset: 3px; }
+    .nota { font-size: 13px; color: #6f6880; }
+
+    /* ---------- a imagem: o quiz do Quizify num celular ---------- */
+    .vitrine { align-self: center; justify-self: center; position: relative; height: min(78vh, 640px); aspect-ratio: 9 / 18.5; container-type: size; }
+    .vitrine::before {                           /* brilho roxo atrás do celular */
+        content: ""; position: absolute; inset: -18% -40%;
+        background: radial-gradient(closest-side, rgba(89, 32, 171, .75), rgba(89, 32, 171, 0) 72%);
+        filter: blur(10px); z-index: 0;
+    }
+    .celular {
+        position: relative; z-index: 1; height: 100%; width: 100%;
+        background: #0b0b14; border-radius: 13% / 6.3%; padding: 4.5%;
+        box-shadow: 0 0 0 2px #2a2440, 0 30px 80px rgba(0, 0, 0, .8);
+        transform: rotate(-4deg);
+    }
+    .tela {
+        height: 100%; border-radius: 9% / 4.4%; background: #0f172a; overflow: hidden;
+        display: flex; flex-direction: column; padding: 13% 7% 7%; font-size: calc(100cqh * .0255);
+    }
+    .q-titulo { text-align: center; color: #818cf8; font-weight: 800; font-size: 1.25em; }
+    .q-prof { text-align: center; color: #94a3b8; font-size: .78em; margin: .2em 0 .9em; padding-bottom: .9em; border-bottom: 1px solid #334155; }
+    .q-topo { display: flex; justify-content: space-between; color: #94a3b8; font-size: .72em; }
+    .q-barra { height: .35em; background: #334155; border-radius: 9em; margin: .5em 0 1em; overflow: hidden; }
+    .q-barra i { display: block; width: 40%; height: 100%; background: #818cf8; }
+    .q-pergunta { font-weight: 800; font-size: 1.05em; line-height: 1.35; margin-bottom: .9em; }
+    .q-opcao { background: var(--opcao); border: 2px solid #475569; border-radius: .7em; padding: .65em .8em; font-weight: 700; font-size: .95em; margin-bottom: .55em; }
+    .q-opcao.certa { animation: acerto .5s ease-out 1.1s both; }
+    .q-feedback { margin-top: .4em; background: #14532d; border-radius: .7em; padding: .8em; font-size: .8em; line-height: 1.4;
+                  animation: surgir .4s ease-out 1.5s both; }
+    .q-feedback b { display: block; font-size: 1.15em; margin-bottom: .2em; }
+    @keyframes acerto {
+        from { background: var(--opcao); border-color: #475569; color: var(--branco); }
+        to   { background: var(--lima); border-color: var(--lima); color: #1a2400; }
+    }
+    @keyframes surgir { from { opacity: 0; transform: translateY(.6em); } to { opacity: 1; transform: none; } }
+    @media (prefers-reduced-motion: reduce) {
+        .q-opcao.certa, .q-feedback { animation-duration: .01s; animation-delay: 0s; }
+        .plano { transition: none; }
+    }
+
+    /* ---------- celular em pé: tudo empilhado ---------- */
+    @media (max-aspect-ratio: 4/5) {
+        .pagina { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr) auto; padding-top: max(14px, env(safe-area-inset-top)); }
+        /* o celular ocupa só o espaço que sobra acima do texto */
+        .vitrine { grid-row: 2; height: auto; min-height: 0; aspect-ratio: auto; width: 100%; align-self: stretch; margin: 1vh 0; }
+        .vitrine::before { inset: 0 5%; }
+        .celular { width: auto; height: 145%; aspect-ratio: 9 / 18.5; margin: 0 auto; transform: rotate(-4deg) translateY(-2%); }
+        .vitrine { overflow: hidden; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
+        .tela { font-size: calc(100cqh * 1.45 * .0255); }
+        .texto { grid-row: 3; gap: clamp(10px, 1.8vh, 18px); }
+        h1 { font-size: clamp(40px, min(13vw, 7.2vh), 72px); }
+        .planos { grid-template-columns: 1fr; gap: 10px; }
+        .plano { min-height: 56px; }
+    }
+    /* telas baixas: tira os detalhes para caber sem rolar */
+    @media (max-height: 720px) { .fatos { display: none; } }
+    @media (max-aspect-ratio: 4/5) and (max-height: 600px) { .sub { font-size: 14px; } }
+    @media (max-aspect-ratio: 4/5) and (max-height: 880px) { .fatos { display: none; } }
+    @media (min-aspect-ratio: 4/5) and (max-height: 520px) { .sub { display: none; } }
+</style>
+</head>
+<body>
+<div class="pagina">
+    <div class="marca" aria-label="Quizify">quizify<span>.</span></div>
+
+    <figure class="vitrine" aria-hidden="true">
+        <div class="celular"><div class="tela">
+            <div class="q-titulo">Biologia: a célula</div>
+            <div class="q-prof">Prof. Ana</div>
+            <div class="q-topo"><span>Pergunta 2 de 5</span><span>Acertos: 1</span></div>
+            <div class="q-barra"><i></i></div>
+            <div class="q-pergunta">Qual organela produz a maior parte da energia da célula?</div>
+            <div class="q-opcao">Ribossomo</div>
+            <div class="q-opcao certa">Mitocôndria</div>
+            <div class="q-opcao">Lisossomo</div>
+            <div class="q-opcao">Complexo golgiense</div>
+            <div class="q-feedback"><b>✅ Correto!</b>A mitocôndria faz a respiração celular e produz o ATP.</div>
+        </div></div>
+    </figure>
+
+    <main class="texto">
+        <h1>Seu material vira quiz em segundos.</h1>
+        <p class="sub">Envie PDF, Word, PowerPoint ou a foto do caderno. A IA cria quizzes e flashcards
+            prontos para aplicar com os alunos ou estudar em casa.</p>
+        <ul class="fatos">
+            <li>Até 5 arquivos de uma vez</li>
+            <li>Link para o aluno responder no celular</li>
+            <li>Correção na hora, com a explicação de cada resposta</li>
+        </ul>
+        <div class="planos">
+            <a class="plano anual" href="{{ url_for('cadastro', plano='anual') }}">
+                Assinar agora
+                <small>Anual: R$ {{ reais(anual.centavos) }} por ano{% if economia > 0 %}, <b>economize R$ {{ reais(economia) }}</b>{% endif %}</small>
+            </a>
+            <a class="plano mensal" href="{{ url_for('cadastro', plano='mensal') }}">
+                Assinar agora
+                <small>Mensal: R$ {{ reais(mensal.centavos) }} por mês</small>
+            </a>
+        </div>
+        <p class="nota">Pagamento por Pix ou cartão, com acesso liberado na hora.</p>
+    </main>
+</div>
+</body>
+</html>
