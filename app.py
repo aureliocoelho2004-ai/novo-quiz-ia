@@ -685,9 +685,111 @@ def confirmar_pagamento(pedido_id, transacao, slug):
     except Exception:
         log.exception("PAGAMENTO SEM CRÉDITO: pedido %s de %s — liberar à mão no /admin", pedido_id, pedido["usuario"])
         raise
+    if conta:
+        somar_metricas(conta.get("origem"), pagamentos=1, receita_centavos=pedido["centavos"])
     if conta and has_request_context() and session.get("usuario") == pedido["usuario"]:
         atualizar_sessao_assinatura(conta)
     return "pago"
+
+
+# --------------------------------------------------------------------------- #
+# Origem dos visitantes (links com ?origem=professores, ?origem=pais...): quantos
+# visitaram, testaram o mini-quiz, criaram conta e pagaram, por origem. Fica em
+# metricas/origens.json no Firebase e aparece no /admin.
+# --------------------------------------------------------------------------- #
+ARQUIVO_METRICAS = "metricas/origens.json"
+COOKIE_ORIGEM = "qz_origem"
+ORIGEM_VALIDA = re.compile(r"[a-z0-9_-]{1,40}")
+MAX_ORIGENS = 200                                  # evita que links inventados encham o arquivo
+# Pré-visualizações de link (Facebook, WhatsApp...) e robôs não contam como visita
+ROBOS = re.compile(r"bot|crawl|spider|facebookexternalhit|facebot|preview|whatsapp|telegram|slack|discord", re.I)
+
+
+def origem_valida(valor):
+    valor = (valor or "").strip().lower()
+    return valor if ORIGEM_VALIDA.fullmatch(valor) else None
+
+
+def eh_robo():
+    return bool(ROBOS.search(request.headers.get("User-Agent", "")))
+
+
+def origem_atual():
+    """O ?origem= desta visita, ou o de uma visita anterior (cookie); sem nenhum,
+    'site' quando veio da landing principal e 'direto' nos outros casos."""
+    origem = origem_valida(request.args.get("origem")) or origem_valida(request.cookies.get(COOKIE_ORIGEM))
+    if origem:
+        return origem
+    referer = request.headers.get("Referer", "")
+    return "site" if re.match(r"https?://(www\.)?quizzify\.com\.br", referer) else "direto"
+
+
+def _somar_metricas(origem, valores):
+    from google.api_core.exceptions import PreconditionFailed
+    for _ in range(6):
+        try:
+            dados, geracao = ler_json_versionado(ARQUIVO_METRICAS)
+            dados = dados or {}
+            if origem not in dados and len(dados) >= MAX_ORIGENS:
+                origem = "outros"
+            linha = dados.setdefault(origem, {})
+            for campo, n in valores.items():
+                linha[campo] = linha.get(campo, 0) + n
+            gravar_json_versionado(ARQUIVO_METRICAS, dados, geracao)
+            return
+        except PreconditionFailed:
+            time.sleep(0.2)                        # outra gravação ao mesmo tempo: tenta de novo
+        except Exception:
+            log.exception("Falha ao somar métricas de %s", origem)
+            return
+
+
+def somar_metricas(origem, **valores):
+    """Soma em segundo plano, para não atrasar a página."""
+    threading.Thread(target=_somar_metricas, args=(origem or "direto", valores), daemon=True).start()
+
+
+def ler_metricas():
+    try:
+        dados, _ = ler_json_versionado(ARQUIVO_METRICAS)
+    except Exception:
+        log.exception("Falha ao ler métricas")
+        return None
+    linhas = [{"origem": o, **{c: v.get(c, 0) for c in ("visitantes", "testes", "contas", "pagamentos", "receita_centavos")}}
+              for o, v in (dados or {}).items()]
+    return sorted(linhas, key=lambda l: (-l["pagamentos"], -l["contas"], -l["visitantes"]))
+
+
+@app.before_request
+def registrar_origem():
+    if request.method != "GET" or request.endpoint in (None, "static", "health", "service_worker", "manifesto",
+                                                       "demo", "demo_video", "tarefa_lembretes") or eh_robo():
+        return
+    pedida = origem_valida(request.args.get("origem"))
+    guardada = origem_valida(request.cookies.get(COOKIE_ORIGEM))
+    if pedida and pedida != guardada:
+        g.nova_origem = pedida
+    elif not pedida and not guardada and request.endpoint == "assine":
+        g.nova_origem = origem_atual()           # chegou à /assine sem link marcado
+    if g.get("nova_origem"):
+        somar_metricas(g.nova_origem, visitantes=1)
+
+
+@app.after_request
+def gravar_cookie_origem(resposta):
+    if g.get("nova_origem"):
+        resposta.set_cookie(COOKIE_ORIGEM, g.nova_origem, max_age=30 * DIA, samesite="Lax", httponly=True,
+                            secure=bool(os.environ.get("RENDER")))
+        resposta.headers["Cache-Control"] = "private, max-age=600"
+    return resposta
+
+
+@app.post("/m/teste")
+def metrica_teste():
+    """A /assine avisa quando a pessoa abre o mini-quiz."""
+    if not eh_robo():
+        somar_metricas(origem_atual(), testes=1)
+    return "", 204
 
 
 # --------------------------------------------------------------------------- #
@@ -831,7 +933,7 @@ def admin():
         return redirect(url_for("admin"))
 
     return render_template("admin.html", usuarios=sorted(usuarios.items()), agora=time.time(),
-                           config_limite_teste=LIMITE_TESTE)
+                           config_limite_teste=LIMITE_TESTE, metricas=ler_metricas())
 
 
 EMAIL_VALIDO = re.compile(r"[^@\s]+@[^@\s]+\.[a-z]{2,}")
@@ -868,7 +970,7 @@ def cadastro():
         flash("A confirmação não coincide com a senha.", "erro")
     else:
         nova = {"senha": generate_password_hash(senha), "admin": False, "trocar_senha": False,
-                "assinante": True, "pago_ate": 0, "criado_em": agora}
+                "assinante": True, "pago_ate": 0, "criado_em": agora, "origem": origem_atual()}
 
         def criar(usuarios):
             if email in usuarios:
@@ -882,6 +984,8 @@ def cadastro():
             log.exception("Falha ao criar conta")
             flash("Não foi possível criar a conta agora. Tente novamente.", "erro")
             return render_template("cadastro.html", email=email, plano_id=plano_id, planos=PLANOS), 503
+        if criada is not False:
+            somar_metricas(nova["origem"], contas=1)
         if criada is False:
             flash("Já existe uma conta com este e-mail. Entre com a sua senha.", "erro")
             return redirect(url_for("login", proximo=url_for("assinatura", plano=plano_id) if plano_id else None))

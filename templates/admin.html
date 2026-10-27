@@ -28,6 +28,48 @@
         <button class="w-full bg-red-500 hover:bg-red-600 font-bold py-2.5 rounded-xl transition">Adicionar utilizador</button>
     </form>
 
+    {% macro reais(c) %}R$ {{ '{:,.2f}'.format(c / 100) | replace(',', 'X') | replace('.', ',') | replace('X', '.') }}{% endmacro %}
+    {% macro pct(a, b) %}{% if b %}<span class="block text-[10px] text-slate-500">{{ (100 * a / b) | round | int }}%</span>{% endif %}{% endmacro %}
+    <div class="space-y-2">
+        <h3 class="font-semibold">📊 De onde vêm os clientes</h3>
+        <p class="text-xs text-slate-400">Pelos links com <code>?origem=</code> (ex.: <code>app.quizzify.com.br/assine?origem=professores</code>).
+            "site" = veio da landing principal; "direto" = sem link marcado. A porcentagem compara com a coluna anterior.</p>
+        {% if metricas is none %}
+        <p class="text-sm text-amber-300">Não foi possível ler os números agora.</p>
+        {% elif not metricas %}
+        <p class="text-sm text-slate-400">Ainda não há visitas registradas.</p>
+        {% else %}
+        <div class="overflow-x-auto rounded-xl border border-slate-700">
+            <table class="w-full text-xs">
+                <thead class="bg-slate-900 text-slate-400">
+                    <tr><th class="text-left p-2">Origem</th><th class="p-2 text-right">Visitas</th><th class="p-2 text-right">Testaram</th>
+                        <th class="p-2 text-right">Contas</th><th class="p-2 text-right">Pagaram</th><th class="p-2 text-right">Receita</th></tr>
+                </thead>
+                <tbody>
+                    {% for l in metricas %}
+                    <tr class="border-t border-slate-700">
+                        <td class="p-2 font-semibold break-all">{{ l.origem }}</td>
+                        <td class="p-2 text-right">{{ l.visitantes }}</td>
+                        <td class="p-2 text-right">{{ l.testes }}{{ pct(l.testes, l.visitantes) }}</td>
+                        <td class="p-2 text-right">{{ l.contas }}{{ pct(l.contas, l.visitantes) }}</td>
+                        <td class="p-2 text-right">{{ l.pagamentos }}{{ pct(l.pagamentos, l.contas) }}</td>
+                        <td class="p-2 text-right whitespace-nowrap">{{ reais(l.receita_centavos) }}</td>
+                    </tr>
+                    {% endfor %}
+                    {% set tv = metricas | sum(attribute='visitantes') %}{% set tc = metricas | sum(attribute='contas') %}
+                    <tr class="border-t border-slate-600 bg-slate-900 font-semibold">
+                        <td class="p-2">Total</td><td class="p-2 text-right">{{ tv }}</td>
+                        <td class="p-2 text-right">{{ metricas | sum(attribute='testes') }}</td>
+                        <td class="p-2 text-right">{{ tc }}</td>
+                        <td class="p-2 text-right">{{ metricas | sum(attribute='pagamentos') }}</td>
+                        <td class="p-2 text-right whitespace-nowrap">{{ reais(metricas | sum(attribute='receita_centavos')) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+    </div>
+
     <div class="space-y-2">
         <h3 class="font-semibold">Utilizadores ({{ usuarios | length }})</h3>
         {% for nome, conta in usuarios %}
@@ -35,6 +77,7 @@
             <summary class="cursor-pointer p-3 flex justify-between items-center">
                 <span>{{ nome }}</span>
                 <span class="text-xs text-slate-400">
+                    {% if conta.origem %}<span class="text-slate-500">{{ conta.origem }} ·</span>{% endif %}
                     {% if conta.admin %}👑 admin{% endif %}
                     {% if conta.assinante %}
                         {% if conta.pago_ate and conta.pago_ate > agora %}<span class="text-green-400">💳 até {{ conta.pago_ate | data_hora }}</span>

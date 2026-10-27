@@ -211,7 +211,10 @@
         const ENDERECO = '{{ url_for('demo', destino='assine', v=versao_video) }}';
 
         function abrirTeste() {
-            if (!quiz.src) quiz.src = ENDERECO;
+            if (!quiz.src) {
+                quiz.src = ENDERECO;
+                try { navigator.sendBeacon('{{ url_for('metrica_teste') }}'); } catch { /* sem contagem */ }
+            }
             caixa.hidden = false;
             fechar.focus();
         }
