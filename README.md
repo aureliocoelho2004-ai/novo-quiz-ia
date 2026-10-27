@@ -28,11 +28,15 @@ static/js/main.js       # upload, compressão de imagens no navegador, download 
 | `LIMITE_TESTE` | (opcional) conteúdos por dia em contas de teste; padrão 10 |
 | `INFINITEPAY_HANDLE` | Sua InfiniteTag (sem o `$`). Sem ela, os pagamentos ficam desligados |
 | `URL_PUBLICA` | Endereço do site, ex.: `https://app.quizzify.com.br` (usado nos links de retorno e aviso) |
-| `PRECO_MENSAL_CENTAVOS` / `PRECO_ANUAL_CENTAVOS` | (opcional) preços em centavos; padrão 2990 e 29900 |
+| `PRECO_MENSAL_CENTAVOS` / `PRECO_ANUAL_CENTAVOS` | (opcional) preços em centavos; padrão 2990 e 19700 |
 | `URL_WEBHOOK` | (opcional) endereço para os avisos da InfinitePay. Por padrão usa `RENDER_EXTERNAL_URL` (o endereço `….onrender.com`, definido pelo próprio Render), para os pagamentos não dependerem do DNS do domínio |
 | `INFINITEPAY_WEBHOOK_TOKEN` | (opcional) segredo do endereço de aviso; por padrão é derivado da `SECRET_KEY` |
 | `INFINITEPAY_API_KEY` | (opcional) chave da API, se a InfinitePay exigir |
 | `INTERVALO_SEGUNDOS` | (opcional) espera mínima entre gerações; padrão 30 |
+| `BREVO_API_KEY` | Chave da API do Brevo (lembretes de renovação por e-mail) |
+| `EMAIL_REMETENTE` | Remetente verificado no Brevo, ex.: `contato@quizzify.com.br` |
+| `EMAIL_REMETENTE_NOME` | (opcional) nome do remetente; padrão `Quizify` |
+| `LEMBRETES_TOKEN` | Segredo da rota `/tarefas/lembretes` (texto aleatório) |
 | `ADMIN_USER` / `ADMIN_PASSWORD` | (opcional) cria o primeiro admin quando ainda não existe `usuarios.json` no Firebase |
 
 ## Login
@@ -66,6 +70,13 @@ flask --app app run --debug
 4. Os dias somam-se ao que já existe; sem renovação, o acesso fica bloqueado até novo pagamento.
 5. No `/admin`, cada assinante mostra a validade e há o botão "Liberar +30 dias" para casos de suporte.
    Se um pagamento for confirmado mas não creditado, o log do Render mostra `PAGAMENTO SEM CRÉDITO`.
+
+## Lembretes de renovação (Brevo)
+
+Um cron-job diário chama `https://novo-quiz-ia.onrender.com/tarefas/lembretes?token=<LEMBRETES_TOKEN>`.
+Cada assinante recebe um e-mail quando faltam 5 dias ou menos e outro até 3 dias depois de vencer, uma vez por
+período pago (renovar recomeça o controle, guardado em `lembretes` na conta). Para testar o envio sem mexer em
+contas: acrescente `&teste=seu@email.com` ao endereço.
 
 ## Meus quizzes
 

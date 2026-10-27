@@ -65,6 +65,11 @@
         <p id="res-texto"></p>
         <button id="btn-erradas" class="btn ambar">Refazer apenas as erradas 🎯</button>
         <button id="btn-tudo" class="btn azul">Refazer tudo 🔄</button>
+        {% if cta_link %}
+        {#- Só na demonstração da landing: leva aos planos, fora do iframe. #}
+        <a href="{{ cta_link }}" target="_top" class="btn" style="background:#16a34a;text-decoration:none;text-align:center;border-radius:12px">
+            Criar quizzes com os meus materiais 🚀</a>
+        {% endif %}
     </section>
 </main>
 

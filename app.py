@@ -289,7 +289,7 @@ def verificar_limite(usuario, limite):
     espera = INTERVALO_SEGUNDOS - (time.time() - uso.get("ultimo", 0))
     if espera > 0:
         return f"⏳ Aguarde {int(espera) + 1}s para criar outro conteúdo."
-    if limite is not None and uso["total"] >= limite:
+    if uso["total"] >= limite:
         return f"⚠️ Limite de {limite} conteúdos por dia atingido. Tente novamente amanhã."
 
     uso["ultimo"] = time.time()  # marca já, para impedir pedidos simultâneos
@@ -1253,12 +1253,7 @@ def gerar():
         atualizar_sessao_assinatura(conta)
         return jsonify(erro="A sua assinatura não está ativa. Renove para continuar."), 402
     sem_limite = bool(conta.get("admin"))
-    if conta.get("expira_em"):
-        limite = LIMITE_TESTE
-    elif conta.get("assinante") and conta.get("plano") == "anual":
-        limite = None  # plano anual: geração ilimitada (continua a espera entre gerações)
-    else:
-        limite = LIMITE_DIARIO
+    limite = LIMITE_TESTE if conta.get("expira_em") else LIMITE_DIARIO
 
     arquivos = [a for a in request.files.getlist("arquivos") if a and a.filename]
     tipo = request.form.get("tipo", "quiz")

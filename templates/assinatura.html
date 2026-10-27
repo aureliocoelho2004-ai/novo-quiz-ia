@@ -29,7 +29,7 @@
         <div class="grid gap-3">
             {% for id, plano in planos.items() %}
             <form method="post" action="{{ url_for('assinatura_pagar') }}"
-                  class="rounded-xl border {{ 'border-red-500' if id == 'anual' else 'border-slate-700' }} bg-slate-900 p-4 space-y-2">
+                  class="rounded-xl border {{ 'border-red-500 border-2' if id == destaque else 'border-slate-700' }} bg-slate-900 p-4 space-y-2">
                 <input type="hidden" name="plano" value="{{ id }}">
                 <div class="flex justify-between items-baseline">
                     <h3 class="font-bold text-lg">{{ plano.nome }}</h3>
