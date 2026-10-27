@@ -70,8 +70,14 @@
         <button id="btn-tudo" class="btn azul">Refazer tudo 🔄</button>
         {% if cta_link %}
         {#- Só na demonstração da landing: leva aos planos, fora do iframe. #}
-        <a href="{{ cta_link }}" target="_top" class="btn" style="background:#16a34a;text-decoration:none;text-align:center;border-radius:12px">
+        <a href="{{ cta_link }}" target="_top" class="btn" {% if cta_avisar %}data-avisar="planos" {% endif %}style="background:#16a34a;text-decoration:none;text-align:center;border-radius:12px">
             Criar quizzes com os meus materiais 🚀</a>
+        {% if cta_avisar %}<script>
+            // Dentro da landing /assine: fecha o teste e mostra os planos, sem sair da página.
+            document.querySelector('[data-avisar]').addEventListener('click', (e) => {
+                if (window.parent !== window) { e.preventDefault(); parent.postMessage({ quizify: 'planos' }, location.origin); }
+            });
+        </script>{% endif %}
         {% endif %}
     </section>
 </main>

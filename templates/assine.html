@@ -110,7 +110,33 @@
     /* o quiz real, jogando sozinho; desenhado a 340 px e reduzido para caber na tela */
     .tela iframe { position: absolute; top: 0; left: 0; width: 340px; height: 700px; border: 0;
                    transform-origin: 0 0; pointer-events: none; background: #0f172a; }
+    /* botão "Teste agora" sobre o celular */
+    .testar {
+        position: absolute; z-index: 3; left: 50%; bottom: 7%; transform: translateX(-50%);
+        white-space: nowrap; border: 0; border-radius: 999px; cursor: pointer;
+        background: var(--lima); color: #1a2400; font: 800 clamp(14px, 2vh, 17px) "Plus Jakarta Sans", sans-serif;
+        padding: .75em 1.3em; box-shadow: 0 8px 28px rgba(0, 0, 0, .55), 0 0 0 4px rgba(193, 252, 56, .18);
+    }
+    .testar:hover { background: #d4ff6a; }
+    .testar:focus-visible { outline: 3px solid var(--branco); outline-offset: 3px; }
+    /* o botão final do teste destaca o plano anual */
+    .plano.anual.chamar { outline: 3px solid var(--lima); outline-offset: 4px; animation: chamar .5s ease-in-out 4; }
+    @keyframes chamar { 50% { transform: scale(1.06); } }
+
+    /* ---------- o mini-quiz por cima da página ---------- */
+    .teste { position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center;
+             background: rgba(0, 0, 0, .88); padding: max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); }
+    .teste[hidden] { display: none; }
+    .teste-caixa { position: relative; width: min(460px, 100%); height: min(820px, 100%);
+                   border-radius: 18px; overflow: hidden; border: 1px solid #2a2440; background: #0f172a; }
+    .teste-caixa iframe { display: block; width: 100%; height: 100%; border: 0; }
+    .teste-fechar { position: absolute; top: 10px; right: 10px; z-index: 2; width: 40px; height: 40px; border: 0; border-radius: 50%;
+                    background: rgba(255, 255, 255, .14); color: var(--branco); font-size: 18px; cursor: pointer; }
+    .teste-fechar:focus-visible { outline: 3px solid var(--lima); }
+    @media (max-width: 500px) { .teste { padding: 0; } .teste-caixa { border-radius: 0; border: 0; height: 100%; } }
+
     @media (prefers-reduced-motion: reduce) {
+        .plano.anual.chamar { animation: none; }
         .plano { transition: none; }
         .plano.anual { animation: none; box-shadow: 0 0 0 3px var(--lima); }
     }
@@ -138,10 +164,11 @@
 <div class="pagina">
     <div class="marca" aria-label="Quizify"><span class="dado" aria-hidden="true">🎲</span> quizify<span>.</span></div>
 
-    <figure class="vitrine" aria-hidden="true">
-        <div class="celular"><div class="tela">
+    <figure class="vitrine">
+        <div class="celular" aria-hidden="true"><div class="tela">
             <iframe id="video-quiz" title="Quiz do Quizify em funcionamento" tabindex="-1"></iframe>
         </div></div>
+        <button type="button" class="testar" id="abrir-teste" aria-haspopup="dialog">▶ Teste agora</button>
     </figure>
 
     <main class="texto">
@@ -166,7 +193,49 @@
         <p class="nota">Pagamento por Pix ou cartão, com acesso liberado na hora.</p>
     </main>
 </div>
+
+<div class="teste" id="teste" hidden role="dialog" aria-modal="true" aria-label="Mini-quiz: teste o Quizify">
+    <div class="teste-caixa">
+        <button type="button" class="teste-fechar" id="fechar-teste" aria-label="Fechar o teste">✕</button>
+        <iframe id="teste-quiz" title="Mini-quiz do Quizify"></iframe>
+    </div>
+</div>
 <script>
+    // Mini-quiz de 5 perguntas por cima da página; o botão final destaca o plano anual.
+    (() => {
+        const caixa = document.getElementById('teste');
+        const quiz = document.getElementById('teste-quiz');
+        const abrir = document.getElementById('abrir-teste');
+        const fechar = document.getElementById('fechar-teste');
+        const anual = document.querySelector('.plano.anual');
+        const ENDERECO = '{{ url_for('demo', destino='assine', v=versao_video) }}';
+
+        function abrirTeste() {
+            if (!quiz.src) quiz.src = ENDERECO;
+            caixa.hidden = false;
+            fechar.focus();
+        }
+        function fecharTeste() {
+            caixa.hidden = true;
+            abrir.focus({ preventScroll: true });
+        }
+        abrir.addEventListener('click', abrirTeste);
+        fechar.addEventListener('click', fecharTeste);
+        caixa.addEventListener('click', (e) => { if (e.target === caixa) fecharTeste(); });
+        document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !caixa.hidden) fecharTeste(); });
+
+        // "Criar quizzes com os meus materiais": fecha o teste e chama a atenção para o plano anual
+        window.addEventListener('message', (e) => {
+            if (e.origin !== location.origin || !e.data || e.data.quizify !== 'planos') return;
+            caixa.hidden = true;
+            anual.classList.remove('chamar');
+            void anual.offsetWidth;            // reinicia a animação
+            anual.classList.add('chamar');
+            anual.focus({ preventScroll: true });
+            setTimeout(() => anual.classList.remove('chamar'), 4000);
+        });
+    })();
+
     // Ajusta o quiz (desenhado a 340 px) ao tamanho da tela do celular.
     (() => {
         const tela = document.querySelector('.tela');

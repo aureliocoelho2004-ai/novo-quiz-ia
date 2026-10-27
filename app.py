@@ -1226,8 +1226,12 @@ QUIZ_DEMO = [
 @app.get("/demo")
 def demo():
     itens = [{"id": i, **q} for i, q in enumerate(QUIZ_DEMO)]
+    # Na landing /assine o botão final fecha o teste e destaca os planos da própria tela;
+    # na landing principal leva à seção de preços.
+    na_assine = request.args.get("destino") == "assine"
     resposta = Response(render_template("quiz.html", titulo="Mini-quiz ENEM", professor="", itens=itens,
-                                        cta_link=LANDING_URL + "/#precos"))
+                                        cta_link=url_for("assine") if na_assine else LANDING_URL + "/#precos",
+                                        cta_avisar=na_assine))
     resposta.headers["Cache-Control"] = "public, max-age=600"
     return resposta
 
