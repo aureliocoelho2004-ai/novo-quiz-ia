@@ -39,8 +39,8 @@ DIA = 24 * 3600
 
 # Assinaturas pagas pela InfinitePay (Checkout Integrado). Preços em centavos.
 PLANOS = {
-    "mensal": {"nome": "Mensal", "centavos": int(os.environ.get("PRECO_MENSAL_CENTAVOS", 2990)), "dias": 30},
-    "anual": {"nome": "Anual", "centavos": int(os.environ.get("PRECO_ANUAL_CENTAVOS", 29900)), "dias": 365},
+    "mensal": {"nome": "Mensal", "centavos": int(os.environ.get("PRECO_MENSAL_CENTAVOS", 100)), "dias": 30},
+    "anual": {"nome": "Anual", "centavos": int(os.environ.get("PRECO_ANUAL_CENTAVOS", 19900)), "dias": 365},
 }
 INFINITEPAY_HANDLE = os.environ.get("INFINITEPAY_HANDLE", "").strip().lstrip("$@")
 INFINITEPAY_API = "https://api.checkout.infinitepay.io"
