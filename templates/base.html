@@ -5,6 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block titulo %}Quizify - Gerador de Quizzes e Flashcards com IA{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+    {#- App instalável: ícone na tela inicial do celular #}
+    <link rel="manifest" href="{{ url_for('manifesto') }}">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/favicon-32.png') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-title" content="Quizify">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-between p-4">
 
@@ -26,6 +35,21 @@
             {% endif %}
         </header>
 
+        <div id="instalar-app" class="hidden mb-4 rounded-xl border border-slate-600 bg-slate-900 p-3 text-sm">
+            <div class="flex items-center gap-3">
+                <img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" class="w-10 h-10 rounded-xl">
+                <p class="flex-1 text-slate-200 leading-snug"><b>Instale o Quizify</b><br>
+                    <span class="text-xs text-slate-400">Ícone na tela inicial, abre mais rápido.</span></p>
+                <button id="instalar-botao" type="button" class="bg-red-500 hover:bg-red-600 font-bold px-3 py-2 rounded-lg">Instalar</button>
+                <button id="instalar-fechar" type="button" class="text-slate-500 hover:text-white text-lg px-1" aria-label="Agora não">✕</button>
+            </div>
+            <ol id="instalar-ios" class="hidden mt-3 space-y-1 text-slate-300 list-decimal list-inside">
+                <li>No Safari, toque em <b>Compartilhar</b> <span aria-hidden="true">(o quadrado com a seta ↑)</span>.</li>
+                <li>Role e toque em <b>Adicionar à Tela de Início</b>.</li>
+                <li>Toque em <b>Adicionar</b>. Pronto!</li>
+            </ol>
+        </div>
+
         {% if dias_para_vencer %}
         <a href="{{ url_for('assinatura') }}" class="block mb-4 text-sm rounded-xl p-3 bg-amber-900/60 text-amber-200 text-center">
             ⏳ A sua assinatura vence em {{ dias_para_vencer }} dia{{ 's' if dias_para_vencer > 1 }}. <b class="underline">Renovar agora</b>
@@ -44,6 +68,7 @@
         Quizify &copy; 2026 - Todos os direitos reservados.
     </footer>
     <script src="{{ url_for('static', filename='js/copiar.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/instalar.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

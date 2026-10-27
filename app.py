@@ -1232,6 +1232,36 @@ def demo():
     return resposta
 
 
+# --------------------------------------------------------------------------- #
+# App instalável (PWA): ícone na tela inicial do celular, abre em tela cheia.
+# O manifesto e o service worker ficam na raiz para valerem para o site todo.
+# --------------------------------------------------------------------------- #
+COR_APP = "#0f172a"
+
+
+@app.get("/manifest.webmanifest")
+def manifesto():
+    icone = lambda nome, tam, uso="any": {"src": url_for("static", filename=f"icons/{nome}"),
+                                         "sizes": f"{tam}x{tam}", "type": "image/png", "purpose": uso}
+    dados = {
+        "id": "/", "name": "Quizify", "short_name": "Quizify", "lang": "pt-BR",
+        "description": "Transforme documentos e fotos em quizzes e flashcards com IA.",
+        "start_url": "/?origem=app", "scope": "/", "display": "standalone", "orientation": "portrait",
+        "background_color": COR_APP, "theme_color": COR_APP,
+        "icons": [icone("icon-192.png", 192), icone("icon-512.png", 512), icone("icon-512.png", 512, "maskable")],
+    }
+    resposta = Response(json.dumps(dados, ensure_ascii=False), mimetype="application/manifest+json")
+    resposta.headers["Cache-Control"] = "public, max-age=3600"
+    return resposta
+
+
+@app.get("/sw.js")
+def service_worker():
+    resposta = Response(render_template("sw.js"), mimetype="application/javascript")
+    resposta.headers.update({"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"})
+    return resposta
+
+
 @app.get("/health")
 def health():
     """Rota leve para o cron-job manter o serviço acordado no Render."""
