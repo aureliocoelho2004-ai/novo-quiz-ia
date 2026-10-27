@@ -991,19 +991,20 @@ EMAIL_REMETENTE_NOME = os.environ.get("EMAIL_REMETENTE_NOME", "Quizify").strip()
 JANELA_VENCIDA_DIAS = 3
 
 
-def enviar_email(para, assunto, html_corpo):
+def enviar_email(para, assunto, html_corpo, texto_corpo):
+    # HTML + versão em texto simples: os filtros de spam penalizam e-mails só em HTML.
     resposta = requests.post(BREVO_API, timeout=15, headers={
         "api-key": obter_segredo("BREVO_API_KEY"), "accept": "application/json",
         "content-type": "application/json"}, json={
         "sender": {"name": EMAIL_REMETENTE_NOME, "email": EMAIL_REMETENTE},
         "to": [{"email": para}], "subject": assunto, "htmlContent": html_corpo,
-        "tags": ["lembrete-renovacao"]})
+        "textContent": texto_corpo, "tags": ["lembrete-renovacao"]})
     if resposta.status_code not in (200, 201, 202):
         raise RuntimeError(f"Brevo devolveu {resposta.status_code}: {resposta.text[:300]}")
 
 
 def email_lembrete(etapa, conta, total_quizzes):
-    """Devolve (assunto, html) do lembrete."""
+    """Devolve (assunto, html, texto simples) do lembrete."""
     plano = PLANOS.get(conta.get("plano"), {}).get("nome", "")
     quando = data_hora(conta["pago_ate"])
     link = url_publica("assinatura")
@@ -1020,15 +1021,24 @@ def email_lembrete(etapa, conta, total_quizzes):
         salvos = (f" Seus <b>{total_quizzes} quiz{'zes' if total_quizzes > 1 else ''}</b> continuam guardados"
                   " e voltam a ficar disponíveis assim que renovar.") if total_quizzes else ""
         texto = f"Sua assinatura venceu em <b>{quando}</b> e o acesso foi pausado.{salvos}"
-    corpo = f"""<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;color:#1e293b">
+    corpo = f"""<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{assunto}</title></head>
+<body style="margin:0;padding:0;background:#ffffff">
+<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;color:#1e293b">
 <h1 style="color:#ef4444;font-size:24px;margin:0 0 16px">🎲 Quizify</h1>
 <h2 style="font-size:18px;margin:0 0 12px">{titulo}</h2>
 <p style="font-size:15px;line-height:1.5">{texto}</p>
 <p style="text-align:center;margin:28px 0"><a href="{link}" style="background:#ef4444;color:#fff;text-decoration:none;
 font-weight:bold;padding:14px 28px;border-radius:12px;display:inline-block">Renovar assinatura</a></p>
 <p style="font-size:13px;color:#64748b">Pagamento por Pix ou cartão, com liberação imediata.<br>
-Se já renovou, pode ignorar este e-mail.</p></div>"""
-    return assunto, corpo
+Se já renovou, pode ignorar este e-mail.</p></div>
+</body></html>"""
+    texto_simples = (f"Quizify\n\n{titulo}\n\n{re.sub(r'<[^>]+>', '', texto)}\n\n"
+                     f"Renovar assinatura: {link}\n\n"
+                     "Pagamento por Pix ou cartão, com liberação imediata.\n"
+                     "Se já renovou, pode ignorar este e-mail.\n")
+    return assunto, corpo, texto_simples
 
 
 def etapa_lembrete(conta, agora):
