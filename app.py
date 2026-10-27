@@ -1241,6 +1241,24 @@ def assine():
     return resposta
 
 
+@app.get("/assinar/<plano_id>")
+def assinar_plano(plano_id):
+    """Botões "Assinar agora": logado vai direto ao checkout do plano;
+    sem conta, cria a conta com o plano escolhido e depois segue para o checkout."""
+    if plano_id not in PLANOS:
+        abort(404)
+    if not session.get("usuario"):
+        return redirect(url_for("cadastro", plano=plano_id))
+    if not session.get("assinante") or not INFINITEPAY_HANDLE:
+        return redirect(url_for("assinatura", plano=plano_id))
+    try:
+        return redirect(iniciar_checkout(plano_id))
+    except Exception:
+        log.exception("Falha ao criar checkout pela landing")
+        flash("Não foi possível abrir o pagamento agora. Tente novamente em instantes.", "erro")
+        return redirect(url_for("assinatura", plano=plano_id))
+
+
 # --------------------------------------------------------------------------- #
 # App instalável (PWA): ícone na tela inicial do celular, abre em tela cheia.
 # O manifesto e o service worker ficam na raiz para valerem para o site todo.

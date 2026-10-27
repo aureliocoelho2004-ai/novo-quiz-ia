@@ -74,6 +74,15 @@
     .plano:hover { transform: translateY(-2px); }
     .plano.mensal:hover { background: rgba(164, 124, 240, .12); }
     .plano:focus-visible { outline: 3px solid var(--lima); outline-offset: 3px; }
+    /* o anual pulsa para chamar a atenção */
+    .plano.anual { animation: pulsar 1.8s ease-in-out 2s infinite; }
+    .plano.anual:hover { animation-play-state: paused; }
+    @keyframes pulsar {
+        0%   { box-shadow: 0 0 0 0 rgba(193, 252, 56, .55); transform: scale(1); }
+        50%  { transform: scale(1.035); }
+        70%  { box-shadow: 0 0 0 14px rgba(193, 252, 56, 0); }
+        100% { box-shadow: 0 0 0 0 rgba(193, 252, 56, 0); transform: scale(1); }
+    }
     .nota { font-size: 13px; color: #6f6880; }
 
     /* ---------- a imagem: o quiz do Quizify num celular ---------- */
@@ -112,6 +121,7 @@
     @media (prefers-reduced-motion: reduce) {
         .q-opcao.certa, .q-feedback { animation-duration: .01s; animation-delay: 0s; }
         .plano { transition: none; }
+        .plano.anual { animation: none; box-shadow: 0 0 0 3px var(--lima); }
     }
 
     /* ---------- celular em pé: tudo empilhado ---------- */
@@ -164,11 +174,11 @@
             <li>Correção na hora, com a explicação de cada resposta</li>
         </ul>
         <div class="planos">
-            <a class="plano anual" href="{{ url_for('cadastro', plano='anual') }}">
+            <a class="plano anual" href="{{ url_for('assinar_plano', plano_id='anual') }}">
                 Assinar agora
                 <small>Anual: R$ {{ reais(anual.centavos) }} por ano{% if economia > 0 %}, <b>economize R$ {{ reais(economia) }}</b>{% endif %}</small>
             </a>
-            <a class="plano mensal" href="{{ url_for('cadastro', plano='mensal') }}">
+            <a class="plano mensal" href="{{ url_for('assinar_plano', plano_id='mensal') }}">
                 Assinar agora
                 <small>Mensal: R$ {{ reais(mensal.centavos) }} por mês</small>
             </a>
