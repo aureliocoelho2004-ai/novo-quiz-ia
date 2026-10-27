@@ -5,11 +5,8 @@
     #dedo { position: fixed; z-index: 20; width: 38px; height: 38px; margin: -19px 0 0 -19px; border-radius: 50%;
             background: rgba(255, 255, 255, .55); border: 2px solid rgba(255, 255, 255, .9);
             box-shadow: 0 4px 14px rgba(0, 0, 0, .45); pointer-events: none; opacity: 0;
-            transition: left .55s cubic-bezier(.4, 0, .2, 1), top .55s cubic-bezier(.4, 0, .2, 1), opacity .3s, transform .12s; }
+            transition: left .8s cubic-bezier(.4, 0, .2, 1), top .8s cubic-bezier(.4, 0, .2, 1), opacity .3s, transform .12s; }
     #dedo.toque { transform: scale(.72); }
-    .palma { position: fixed; z-index: 15; font-size: 44px; pointer-events: none; animation: subir 2.6s ease-out forwards; }
-    @keyframes subir { from { transform: translateY(0) scale(.6); opacity: 0; } 15% { opacity: 1; }
-                       to { transform: translateY(-75vh) scale(1.15); opacity: 0; } }
 </style>
 <div id="dedo" aria-hidden="true"></div>
 <script>
@@ -27,7 +24,7 @@
         dedo.style.left = `${r.left + r.width * 0.62}px`;
         dedo.style.top = `${r.top + r.height * 0.55}px`;
         dedo.style.opacity = '1';
-        await esperar(750);
+        await esperar(1100);
         dedo.classList.add('toque');
         await esperar(130);
         dedo.style.opacity = '0';          // some no toque: a tela se reorganiza logo depois
@@ -42,35 +39,22 @@
         return document.getElementById('opcoes').children[i];
     };
 
-    function aplausos() {
-        for (let i = 0; i < 14; i++) {
-            setTimeout(() => {
-                const p = Object.assign(document.createElement('div'), { className: 'palma', textContent: '👏' });
-                p.style.left = `${8 + Math.random() * 78}%`;
-                p.style.top = `${70 + Math.random() * 20}%`;
-                document.body.appendChild(p);
-                setTimeout(() => p.remove(), 2700);
-            }, i * 180);
-        }
-    }
-
     async function rodar() {
-        await esperar(1300);
-        await tocar(opcao(true));                                  // 1ª pergunta: acerta
-        await esperar(2300);
-        await tocar(document.getElementById('btn-continuar'));
-        await esperar(1100);
-        await tocar(opcao(false));                                 // 2ª pergunta: erra
-        await esperar(3000);
-        await tocar(document.getElementById('btn-continuar'));
-        await esperar(2600);                                       // resultado: 50%
-        await tocar(document.getElementById('btn-erradas'));       // refaz só as erradas
-        await esperar(1200);
-        await tocar(opcao(true));                                  // agora acerta
         await esperar(2000);
+        await tocar(opcao(true));                                  // 1ª pergunta: acerta
+        await esperar(3500);
+        await tocar(document.getElementById('btn-continuar'));
+        await esperar(1600);
+        await tocar(opcao(false));                                 // 2ª pergunta: erra
+        await esperar(4800);
+        await tocar(document.getElementById('btn-continuar'));
+        await esperar(4000);                                       // resultado: 50%
+        await tocar(document.getElementById('btn-erradas'));       // refaz só as erradas
+        await esperar(1800);
+        await tocar(opcao(true));                                  // agora acerta
+        await esperar(3400);
         await tocar(document.getElementById('btn-continuar'));     // 100%: troféu e confetes
-        aplausos();
-        await esperar(6500);
+        await esperar(8000);
         iniciar(QUESTOES, false);                                  // recomeça o "vídeo"
         rodar();
     }

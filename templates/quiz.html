@@ -37,6 +37,9 @@
             animation: pulsar 1.2s ease-in-out infinite; }
     @keyframes pulsar { 50% { opacity: .45; } }
     #confetes { position: fixed; inset: 0; pointer-events: none; z-index: 10; }
+    .palma { position: fixed; z-index: 15; font-size: 44px; pointer-events: none; animation: subir 2.6s ease-out forwards; }
+    @keyframes subir { from { transform: translateY(0) scale(.6); opacity: 0; } 15% { opacity: 1; }
+                       to { transform: translateY(-75vh) scale(1.15); opacity: 0; } }
 </style>
 </head>
 <body>
@@ -188,12 +191,27 @@ function finalizar() {
     // Celebração SOMENTE com 100% de acertos
     if (perfeito) {
         soltarConfetes();
+        soltarPalmas();
         tocarCelebracao();
     }
 }
 
 $('btn-erradas').onclick = () => iniciar(embaralharRodada(erradas), true);
 $('btn-tudo').onclick = () => iniciar(embaralharRodada(modoRevisao ? QUESTOES : rodada), false);
+
+// Palmas (👏) subindo pela tela junto com os confetes
+function soltarPalmas() {
+    for (let i = 0; i < 14; i++) {
+        setTimeout(() => {
+            const p = Object.assign(document.createElement('div'), { className: 'palma', textContent: '👏' });
+            p.setAttribute('aria-hidden', 'true');
+            p.style.left = `${8 + Math.random() * 78}%`;
+            p.style.top = `${70 + Math.random() * 20}%`;
+            document.body.appendChild(p);
+            setTimeout(() => p.remove(), 2700);
+        }, i * 180);
+    }
+}
 
 // Confetes leves sem biblioteca externa (funciona offline)
 function soltarConfetes() {
