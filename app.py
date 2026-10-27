@@ -1232,6 +1232,26 @@ def demo():
     return resposta
 
 
+QUIZ_VIDEO = [
+    {"pergunta": "Qual organela produz a maior parte da energia da célula?",
+     "opcoes": ["Ribossomo", "Mitocôndria", "Lisossomo", "Complexo golgiense"], "correta": 1,
+     "explicacao": "A mitocôndria faz a respiração celular e produz o ATP."},
+    {"pergunta": "Um produto de R$ 80,00 tem 15% de desconto. Qual é o preço final?",
+     "opcoes": ["R$ 65,00", "R$ 68,00", "R$ 70,00", "R$ 72,00"], "correta": 1,
+     "explicacao": "15% de 80 é 12. Então 80 − 12 = R$ 68,00."},
+]
+
+
+@app.get("/demo/video")
+def demo_video():
+    """O quiz real jogando sozinho, em loop, dentro do celular da landing /assine."""
+    itens = [{"id": i, **q} for i, q in enumerate(QUIZ_VIDEO)]
+    resposta = Response(render_template("quiz.html", titulo="Revisão para a prova", professor="Ana",
+                                        itens=itens, autoplay=not request.args.get("parado")))
+    resposta.headers["Cache-Control"] = "public, max-age=600"
+    return resposta
+
+
 @app.get("/assine")
 def assine():
     """Landing de uma tela só (anúncios): planos anual e mensal."""

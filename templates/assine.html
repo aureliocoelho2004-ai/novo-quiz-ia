@@ -49,7 +49,7 @@
     .marca { grid-column: 1 / -1; font-weight: 800; font-size: clamp(20px, 3vh, 26px); letter-spacing: -.02em; }
     .marca span { color: var(--lima); }
 
-    .texto { align-self: center; display: flex; flex-direction: column; gap: clamp(12px, 2.4vh, 24px); }
+    .texto { position: relative; z-index: 2; align-self: center; display: flex; flex-direction: column; gap: clamp(12px, 2.4vh, 24px); }
     h1 {
         font-family: "Barlow Condensed", sans-serif; font-weight: 800;
         font-size: clamp(44px, min(7vw, 11vh), 112px);
@@ -98,28 +98,11 @@
         box-shadow: 0 0 0 2px #2a2440, 0 30px 80px rgba(0, 0, 0, .8);
         transform: rotate(-4deg);
     }
-    .tela {
-        height: 100%; border-radius: 9% / 4.4%; background: #0f172a; overflow: hidden;
-        display: flex; flex-direction: column; padding: 13% 7% 7%; font-size: calc(100cqh * .0255);
-    }
-    .q-titulo { text-align: center; color: #818cf8; font-weight: 800; font-size: 1.25em; }
-    .q-prof { text-align: center; color: #94a3b8; font-size: .78em; margin: .2em 0 .9em; padding-bottom: .9em; border-bottom: 1px solid #334155; }
-    .q-topo { display: flex; justify-content: space-between; color: #94a3b8; font-size: .72em; }
-    .q-barra { height: .35em; background: #334155; border-radius: 9em; margin: .5em 0 1em; overflow: hidden; }
-    .q-barra i { display: block; width: 40%; height: 100%; background: #818cf8; }
-    .q-pergunta { font-weight: 800; font-size: 1.05em; line-height: 1.35; margin-bottom: .9em; }
-    .q-opcao { background: var(--opcao); border: 2px solid #475569; border-radius: .7em; padding: .65em .8em; font-weight: 700; font-size: .95em; margin-bottom: .55em; }
-    .q-opcao.certa { animation: acerto .5s ease-out 1.1s both; }
-    .q-feedback { margin-top: .4em; background: #14532d; border-radius: .7em; padding: .8em; font-size: .8em; line-height: 1.4;
-                  animation: surgir .4s ease-out 1.5s both; }
-    .q-feedback b { display: block; font-size: 1.15em; margin-bottom: .2em; }
-    @keyframes acerto {
-        from { background: var(--opcao); border-color: #475569; color: var(--branco); }
-        to   { background: var(--lima); border-color: var(--lima); color: #1a2400; }
-    }
-    @keyframes surgir { from { opacity: 0; transform: translateY(.6em); } to { opacity: 1; transform: none; } }
+    .tela { height: 100%; border-radius: 9% / 4.4%; background: #0f172a; overflow: hidden; position: relative; }
+    /* o quiz real, jogando sozinho; desenhado a 340 px e reduzido para caber na tela */
+    .tela iframe { position: absolute; top: 0; left: 0; width: 340px; height: 700px; border: 0;
+                   transform-origin: 0 0; pointer-events: none; background: #0f172a; }
     @media (prefers-reduced-motion: reduce) {
-        .q-opcao.certa, .q-feedback { animation-duration: .01s; animation-delay: 0s; }
         .plano { transition: none; }
         .plano.anual { animation: none; box-shadow: 0 0 0 3px var(--lima); }
     }
@@ -130,9 +113,7 @@
         /* o celular ocupa só o espaço que sobra acima do texto */
         .vitrine { grid-row: 2; height: auto; min-height: 0; aspect-ratio: auto; width: 100%; align-self: stretch; margin: 1vh 0; }
         .vitrine::before { inset: 0 5%; }
-        .celular { width: auto; height: 145%; aspect-ratio: 9 / 18.5; margin: 0 auto; transform: rotate(-4deg) translateY(-2%); }
-        .vitrine { overflow: hidden; -webkit-mask-image: linear-gradient(#000 70%, transparent); mask-image: linear-gradient(#000 70%, transparent); }
-        .tela { font-size: calc(100cqh * 1.45 * .0255); }
+        .celular { width: auto; height: 100%; aspect-ratio: 9 / 18.5; margin: 0 auto; transform: rotate(-3deg); }
         .texto { grid-row: 3; gap: clamp(10px, 1.8vh, 18px); }
         h1 { font-size: clamp(40px, min(13vw, 7.2vh), 72px); }
         .planos { grid-template-columns: 1fr; gap: 10px; }
@@ -151,16 +132,7 @@
 
     <figure class="vitrine" aria-hidden="true">
         <div class="celular"><div class="tela">
-            <div class="q-titulo">Biologia: a célula</div>
-            <div class="q-prof">Prof. Ana</div>
-            <div class="q-topo"><span>Pergunta 2 de 5</span><span>Acertos: 1</span></div>
-            <div class="q-barra"><i></i></div>
-            <div class="q-pergunta">Qual organela produz a maior parte da energia da célula?</div>
-            <div class="q-opcao">Ribossomo</div>
-            <div class="q-opcao certa">Mitocôndria</div>
-            <div class="q-opcao">Lisossomo</div>
-            <div class="q-opcao">Complexo golgiense</div>
-            <div class="q-feedback"><b>✅ Correto!</b>A mitocôndria faz a respiração celular e produz o ATP.</div>
+            <iframe id="video-quiz" title="Quiz do Quizify em funcionamento" tabindex="-1"></iframe>
         </div></div>
     </figure>
 
@@ -186,5 +158,21 @@
         <p class="nota">Pagamento por Pix ou cartão, com acesso liberado na hora.</p>
     </main>
 </div>
+<script>
+    // Ajusta o quiz (desenhado a 340 px) ao tamanho da tela do celular.
+    (() => {
+        const tela = document.querySelector('.tela');
+        const quadro = document.getElementById('video-quiz');
+        const parado = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        quadro.src = '{{ url_for('demo_video') }}' + (parado ? '?parado=1' : '');
+        const ajustar = () => {
+            const escala = tela.clientWidth / 340;
+            quadro.style.transform = `scale(${escala})`;
+            quadro.style.height = `${tela.clientHeight / escala}px`;
+        };
+        new ResizeObserver(ajustar).observe(tela);
+        ajustar();
+    })();
+</script>
 </body>
 </html>
