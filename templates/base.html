@@ -35,8 +35,8 @@
             {% endif %}
         </header>
 
-        {#- Só para quem já está usando o app: no cadastro/login/pagamento o aviso atrapalha #}
-        {% if session.usuario and request.endpoint not in ('login', 'cadastro', 'assinatura', 'assinatura_pagar', 'assinatura_retorno', 'trocar_senha') %}
+        {#- Só para quem já está usando o app (ver dados_instalar em app.py) #}
+        {% if instalar_link %}
         <div id="instalar-app" class="hidden mb-4 rounded-xl border border-slate-600 bg-slate-900 p-3 text-sm">
             <div class="flex items-center gap-3">
                 <img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" class="w-10 h-10 rounded-xl">
@@ -46,7 +46,7 @@
                 <button id="instalar-fechar" type="button" class="text-slate-500 hover:text-white text-lg px-1" aria-label="Agora não">✕</button>
             </div>
             <ol id="instalar-ios" class="hidden mt-3 space-y-1 text-slate-300 list-decimal list-inside">
-                <li>Toque em <b>Compartilhar</b> <span aria-hidden="true">(o quadrado com a seta ↑)</span>.</li>
+                <li>Toque em <b>Compartilhar</b> <span aria-hidden="true">(o quadrado com a seta ↑, embaixo da tela)</span>.</li>
                 <li>Role e toque em <b>Adicionar à Tela de Início</b>.</li>
                 <li>Toque em <b>Adicionar</b>. Pronto!</li>
             </ol>
@@ -55,10 +55,14 @@
                 <li>Toque em <b>Instalar app</b> ou <b>Adicionar à tela inicial</b>.</li>
                 <li>Confirme em <b>Instalar</b>. Pronto!</li>
             </ol>
-            <p id="instalar-navegador" class="hidden mt-3 text-slate-300">
-                Este link abriu dentro de outro aplicativo. Para instalar, abra
-                <b>app.quizzify.com.br</b> no <b>Chrome</b> (Android) ou no <b>Safari</b> (iPhone).
-            </p>
+            <div id="instalar-navegador" class="hidden mt-3 text-slate-300 space-y-2">
+                <p>Para instalar, o Quizify precisa abrir no <b id="instalar-nome-navegador">navegador</b> do celular.
+                    Toque no botão: ele abre <b>já com a sua conta</b>, é só tocar em <b>Instalar</b> lá.</p>
+                <a id="instalar-abrir" href="{{ instalar_link }}" target="_blank" rel="noopener"
+                   class="block text-center bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl">Abrir no navegador</a>
+                <p class="text-xs text-slate-400">Não abriu? Toque nos <b>três pontinhos</b> no canto da tela e em
+                    <b>Abrir no navegador</b>.</p>
+            </div>
         </div>
         {% endif %}
 
@@ -80,7 +84,7 @@
         Quizify &copy; 2026 - Todos os direitos reservados.
     </footer>
     <script src="{{ url_for('static', filename='js/copiar.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/instalar.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/instalar.js') }}?v=2"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

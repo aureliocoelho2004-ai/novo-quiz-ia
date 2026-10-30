@@ -20,6 +20,7 @@ from functools import wraps
 import requests
 from flask import (Flask, Response, abort, flash, g, has_request_context, jsonify, redirect,
                    render_template, request, session, url_for)
+from itsdangerous import BadSignature, URLSafeTimedSerializer
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -1231,6 +1232,49 @@ def dados_assinatura():
     if 0 < restante <= AVISO_VENCIMENTO_DIAS * DIA:
         return {"dias_para_vencer": max(1, round(restante / DIA))}
     return {}
+
+
+# ---------- Instalar o app: abrir no navegador do celular já logado ----------
+# Dentro do Instagram/Facebook não dá para instalar. O aviso mostra um botão que
+# abre o Chrome/Safari num link de uso rápido (10 min) que já entra na conta.
+VALIDADE_LINK_NAVEGADOR = 600
+SEM_AVISO_INSTALAR = {"login", "cadastro", "trocar_senha", "assinatura_pagar", "assinatura_retorno"}
+
+
+def _assinador_navegador():
+    return URLSafeTimedSerializer(app.secret_key, salt="abrir-no-navegador")
+
+
+@app.context_processor
+def dados_instalar():
+    """Liga o aviso de instalar só para quem já está usando o app (e, na página
+    de assinatura, só depois de pago)."""
+    usuario = session.get("usuario")
+    if not usuario or request.endpoint in SEM_AVISO_INSTALAR or session.get("trocar_senha"):
+        return {}
+    if request.endpoint == "assinatura" and session.get("assinante") and (session.get("pago_ate") or 0) < time.time():
+        return {}
+    token = _assinador_navegador().dumps({"u": usuario})
+    return {"instalar_link": url_publica("entrar_navegador", token=token)}
+
+
+@app.get("/entrar/<token>")
+def entrar_navegador(token):
+    try:
+        dados = _assinador_navegador().loads(token, max_age=VALIDADE_LINK_NAVEGADOR)
+    except BadSignature:
+        flash("Este link expirou. Entre com o seu e-mail e senha.", "erro")
+        return redirect(url_for("login"))
+    nome = dados.get("u", "")
+    conta = carregar_usuarios().get(nome)
+    if not conta or expirou(conta):
+        return redirect(url_for("login"))
+    session.clear()
+    session.permanent = True
+    session.update(usuario=nome, admin=bool(conta.get("admin")), trocar_senha=bool(conta.get("trocar_senha")),
+                   expira_em=conta.get("expira_em"))
+    atualizar_sessao_assinatura(conta)
+    return redirect(url_for("index", instalar=1))
 
 
 @app.get("/")
