@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block titulo %}Esqueci minha senha - Quizify{% endblock %}
+{% block conteudo %}
+{% if enviado %}
+<div class="space-y-4 text-center">
+    <h2 class="text-xl font-bold">📬 Verifique o seu e-mail</h2>
+    <p class="text-sm text-slate-300">Se existir uma conta com <b>{{ enviado }}</b>, enviamos um link para criar uma
+        nova senha. Ele chega em até 2 minutos e vale por 1 hora.</p>
+    <p class="text-xs text-slate-400">Não chegou? Olhe a caixa de <b>spam</b> ou <b>promoções</b>.</p>
+    <a href="{{ url_for('login') }}" class="block bg-red-500 hover:bg-red-600 font-bold py-3 rounded-xl">Voltar para entrar</a>
+</div>
+{% else %}
+<form method="post" class="space-y-4">
+    <h2 class="text-xl font-bold text-center">🔑 Esqueci minha senha</h2>
+    <p class="text-sm text-slate-400 text-center">Digite o e-mail da sua conta e enviaremos um link para criar uma nova senha.</p>
+    <div>
+        <label for="email" class="block text-sm font-medium mb-2 text-slate-300">E-mail</label>
+        <input id="email" name="email" type="email" value="{{ email or '' }}" required autofocus autocomplete="email" autocapitalize="none" maxlength="120"
+               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+    </div>
+    <button class="w-full bg-red-500 hover:bg-red-600 font-bold py-3 rounded-xl transition">Enviar link</button>
+</form>
+<p class="text-sm text-center text-slate-400 mt-6"><a href="{{ url_for('login') }}" class="underline">Voltar para entrar</a></p>
+{% endif %}
+{% endblock %}

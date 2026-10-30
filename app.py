@@ -688,6 +688,7 @@ def confirmar_pagamento(pedido_id, transacao, slug):
         raise
     if conta:
         somar_metricas(conta.get("origem"), pagamentos=1, receita_centavos=pedido["centavos"])
+        enviar_boas_vindas(pedido["usuario"], dict(conta))
     if conta and has_request_context() and session.get("usuario") == pedido["usuario"]:
         atualizar_sessao_assinatura(conta)
     return "pago"
@@ -1096,14 +1097,20 @@ EMAIL_REMETENTE_NOME = os.environ.get("EMAIL_REMETENTE_NOME", "Quizify").strip()
 JANELA_VENCIDA_DIAS = 3
 
 
-def enviar_email(para, assunto, html_corpo, texto_corpo):
+EMAIL_SUPORTE = os.environ.get("EMAIL_SUPORTE", "contato@quizzify.com.br").strip()
+# Links dos e-mails: sempre o domínio próprio (o aviso de pagamento chega pelo endereço do Render)
+URL_APP = (os.environ.get("URL_PUBLICA", "").strip() or "https://app.quizzify.com.br").rstrip("/")
+
+
+def enviar_email(para, assunto, html_corpo, texto_corpo, tag="lembrete-renovacao"):
     # HTML + versão em texto simples: os filtros de spam penalizam e-mails só em HTML.
     resposta = requests.post(BREVO_API, timeout=15, headers={
         "api-key": obter_segredo("BREVO_API_KEY"), "accept": "application/json",
         "content-type": "application/json"}, json={
         "sender": {"name": EMAIL_REMETENTE_NOME, "email": EMAIL_REMETENTE},
+        "replyTo": {"email": EMAIL_SUPORTE, "name": "Suporte Quizify"},
         "to": [{"email": para}], "subject": assunto, "htmlContent": html_corpo,
-        "textContent": texto_corpo, "tags": ["lembrete-renovacao"]})
+        "textContent": texto_corpo, "tags": [tag]})
     if resposta.status_code not in (200, 201, 202):
         raise RuntimeError(f"Brevo devolveu {resposta.status_code}: {resposta.text[:300]}")
 
@@ -1137,13 +1144,160 @@ def email_lembrete(etapa, conta, total_quizzes):
 <p style="text-align:center;margin:28px 0"><a href="{link}" style="background:#ef4444;color:#fff;text-decoration:none;
 font-weight:bold;padding:14px 28px;border-radius:12px;display:inline-block">Renovar assinatura</a></p>
 <p style="font-size:13px;color:#64748b">Pagamento por Pix ou cartão, com liberação imediata.<br>
-Se já renovou, pode ignorar este e-mail.</p></div>
+Se já renovou, pode ignorar este e-mail.<br>
+Dúvidas? Responda este e-mail ou escreva para <a href="mailto:{EMAIL_SUPORTE}" style="color:#64748b">{EMAIL_SUPORTE}</a>.</p></div>
 </body></html>"""
     texto_simples = (f"Quizify\n\n{titulo}\n\n{re.sub(r'<[^>]+>', '', texto)}\n\n"
                      f"Renovar assinatura: {link}\n\n"
                      "Pagamento por Pix ou cartão, com liberação imediata.\n"
-                     "Se já renovou, pode ignorar este e-mail.\n")
+                     "Se já renovou, pode ignorar este e-mail.\n"
+                     f"Dúvidas? Escreva para {EMAIL_SUPORTE}\n")
     return assunto, corpo, texto_simples
+
+
+def montar_email(assunto, titulo, miolo_html, botao, link, miolo_texto, depois_html=""):
+    """Layout comum dos e-mails (HTML simples, funciona em todos os leitores)."""
+    corpo = f"""<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{assunto}</title></head>
+<body style="margin:0;padding:0;background:#ffffff">
+<div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;color:#1e293b">
+<h1 style="color:#ef4444;font-size:24px;margin:0 0 16px">🎲 Quizify</h1>
+<h2 style="font-size:18px;margin:0 0 12px">{titulo}</h2>
+{miolo_html}
+<p style="text-align:center;margin:28px 0"><a href="{link}" style="background:#ef4444;color:#fff;text-decoration:none;
+font-weight:bold;padding:14px 28px;border-radius:12px;display:inline-block">{botao}</a></p>
+{depois_html}
+<p style="font-size:13px;color:#64748b">Dúvidas ou dificuldade para acessar? Responda este e-mail ou escreva para
+<a href="mailto:{EMAIL_SUPORTE}" style="color:#64748b">{EMAIL_SUPORTE}</a>.</p></div>
+</body></html>"""
+    texto = f"Quizify\n\n{titulo}\n\n{miolo_texto}\n\n{botao}: {link}\n\nDúvidas? Escreva para {EMAIL_SUPORTE}\n"
+    return assunto, corpo, texto
+
+
+def email_boas_vindas(email, conta):
+    plano = PLANOS.get(conta.get("plano"), {}).get("nome", "")
+    validade = datetime.fromtimestamp(conta["pago_ate"], FUSO_BRASIL).strftime("%d/%m/%Y")
+    p = 'style="font-size:15px;line-height:1.5"'
+    miolo = f"""<p {p}>Pagamento confirmado! Seu acesso{' ao plano <b>' + plano + '</b>' if plano else ''}
+está liberado até <b>{validade}</b>.</p>
+<p {p}><b>Para entrar:</b> acesse <a href="{URL_APP}">app.quizzify.com.br</a> com o e-mail
+<b>{email}</b> e a senha que você criou.</p>"""
+    depois = f"""<p {p}><b>📲 Quer o Quizify na tela do celular?</b> (opcional — funciona igual no navegador)<br>
+<b>Android:</b> abra o link no <b>Chrome</b>, toque em <b>⋮</b> e em <b>Instalar app</b>.<br>
+<b>iPhone:</b> abra no <b>Safari</b>, toque em <b>Compartilhar</b> (□↑) e em <b>Adicionar à Tela de Início</b>.</p>
+<p style="font-size:13px;color:#64748b">Esqueceu a senha? Na tela de entrar, toque em
+<a href="{URL_APP}/esqueci-senha" style="color:#64748b">Esqueci minha senha</a>.</p>"""
+    texto = (f"Pagamento confirmado! Seu acesso{' ao plano ' + plano if plano else ''} está liberado até {validade}.\n\n"
+             f"Para entrar: acesse {URL_APP} com o e-mail {email} e a senha que você criou.\n\n"
+             "Quer o Quizify na tela do celular? (opcional)\n"
+             "Android: abra o link no Chrome, toque em ⋮ e em Instalar app.\n"
+             "iPhone: abra no Safari, toque em Compartilhar e em Adicionar à Tela de Início.\n\n"
+             f"Esqueceu a senha? {URL_APP}/esqueci-senha")
+    return montar_email("Seu acesso ao Quizify está liberado 🎉", "🎉 Bem-vindo(a) ao Quizify!",
+                        miolo, "Acessar o Quizify", URL_APP + "/", texto, depois)
+
+
+def enviar_boas_vindas(email, conta):
+    """Roda em segundo plano depois do pagamento; uma falha aqui não afeta o crédito."""
+    if "@" not in email or not os.environ.get("BREVO_API_KEY") or not EMAIL_REMETENTE:
+        return
+    def tarefa():
+        try:
+            enviar_email(email, *email_boas_vindas(email, conta), tag="boas-vindas")
+        except Exception:
+            log.exception("Falha ao enviar boas-vindas para %s", email)
+    threading.Thread(target=tarefa, daemon=True).start()
+
+
+# ---------- Esqueci minha senha ----------
+VALIDADE_LINK_SENHA = 3600
+_pedidos_senha = {}
+
+
+def _assinador_senha():
+    return URLSafeTimedSerializer(app.secret_key, salt="nova-senha")
+
+
+def email_nova_senha(link):
+    miolo = ('<p style="font-size:15px;line-height:1.5">Recebemos um pedido para criar uma nova senha. '
+             'Toque no botão abaixo — o link vale por <b>1 hora</b> e só funciona uma vez.</p>'
+             '<p style="font-size:13px;color:#64748b">Não pediu? Pode ignorar este e-mail: sua senha continua a mesma.</p>')
+    texto = ("Recebemos um pedido para criar uma nova senha. O link vale por 1 hora e só funciona uma vez.\n"
+             "Não pediu? Pode ignorar este e-mail.")
+    return montar_email("Criar nova senha do Quizify", "🔑 Criar nova senha", miolo, "Criar nova senha", link, texto)
+
+
+@app.route("/esqueci-senha", methods=["GET", "POST"])
+def esqueci_senha():
+    if request.method == "GET":
+        return render_template("esqueci_senha.html")
+    email = request.form.get("email", "").strip().lower()
+    ip, agora = ip_cliente(), time.time()
+    with _trava_contadores:
+        _pedidos_senha[ip] = [t for t in _pedidos_senha.get(ip, []) if agora - t < 3600]
+        excedeu = len(_pedidos_senha[ip]) >= 5
+    if excedeu:
+        flash("Muitos pedidos. Aguarde um pouco e tente novamente.", "erro")
+        return render_template("esqueci_senha.html", email=email), 429
+    registrar_tentativa(_pedidos_senha, ip, agora)
+    conta = carregar_usuarios().get(email) if EMAIL_VALIDO.fullmatch(email) else None
+    if conta and not expirou(conta) and os.environ.get("BREVO_API_KEY") and EMAIL_REMETENTE:
+        token = _assinador_senha().dumps({"u": email, "h": conta["senha"][-16:]})
+        link = f"{URL_APP}/nova-senha/{token}"
+        def tarefa():
+            try:
+                enviar_email(email, *email_nova_senha(link), tag="nova-senha")
+            except Exception:
+                log.exception("Falha ao enviar link de nova senha para %s", email)
+        threading.Thread(target=tarefa, daemon=True).start()
+    # Mesma resposta sempre: não revela quais e-mails têm conta.
+    return render_template("esqueci_senha.html", enviado=email)
+
+
+@app.route("/nova-senha/<token>", methods=["GET", "POST"])
+def nova_senha(token):
+    try:
+        dados = _assinador_senha().loads(token, max_age=VALIDADE_LINK_SENHA)
+    except BadSignature:
+        dados = {}
+    nome = dados.get("u", "")
+    conta = carregar_usuarios().get(nome) if nome else None
+    if not conta or conta["senha"][-16:] != dados.get("h"):
+        flash("Este link expirou ou já foi usado. Peça um novo abaixo.", "erro")
+        return redirect(url_for("esqueci_senha"))
+    if request.method == "GET":
+        return render_template("nova_senha.html", email=nome)
+
+    nova = request.form.get("nova", "")
+    if not senha_valida(nova):
+        flash("A nova senha deve ter pelo menos 8 caracteres.", "erro")
+    elif nova != request.form.get("confirmar", ""):
+        flash("A confirmação não coincide com a nova senha.", "erro")
+    else:
+        def trocar(usuarios):
+            c = usuarios.get(nome)
+            if not c or c["senha"][-16:] != dados.get("h"):
+                return False
+            c.update(senha=generate_password_hash(nova), trocar_senha=False)
+            return c
+        try:
+            atualizada = alterar_usuarios(trocar)
+        except Exception:
+            log.exception("Falha ao gravar nova senha")
+            flash("Não foi possível salvar agora. Tente novamente.", "erro")
+            return render_template("nova_senha.html", email=nome), 503
+        if atualizada is False:
+            flash("Este link já foi usado. Peça um novo abaixo.", "erro")
+            return redirect(url_for("esqueci_senha"))
+        session.clear()
+        session.permanent = True
+        session.update(usuario=nome, admin=bool(atualizada.get("admin")), trocar_senha=False,
+                       expira_em=atualizada.get("expira_em"))
+        atualizar_sessao_assinatura(atualizada)
+        flash("Senha alterada! Você já está dentro. 🎉", "ok")
+        return redirect(url_for("index"))
+    return render_template("nova_senha.html", email=nome), 400
 
 
 def etapa_lembrete(conta, agora):
@@ -1178,7 +1332,11 @@ def tarefa_lembretes():
     if (teste := request.args.get("teste", "").strip()):
         exemplo = {"pago_ate": time.time() + 3 * DIA, "plano": "mensal"}
         try:
-            enviar_email(teste, *email_lembrete("antes", exemplo, 0))
+            if request.args.get("tipo") == "boas-vindas":   # &tipo=boas-vindas: e-mail pós-pagamento
+                exemplo = {"pago_ate": time.time() + 365 * DIA, "plano": "anual"}
+                enviar_email(teste, *email_boas_vindas(teste, exemplo), tag="boas-vindas")
+            else:
+                enviar_email(teste, *email_lembrete("antes", exemplo, 0))
         except Exception as erro:
             log.exception("Falha no e-mail de teste")
             return jsonify(ok=False, erro=str(erro)), 502
@@ -1238,7 +1396,8 @@ def dados_assinatura():
 # Dentro do Instagram/Facebook não dá para instalar. O aviso mostra um botão que
 # abre o Chrome/Safari num link de uso rápido (10 min) que já entra na conta.
 VALIDADE_LINK_NAVEGADOR = 600
-SEM_AVISO_INSTALAR = {"login", "cadastro", "trocar_senha", "assinatura_pagar", "assinatura_retorno"}
+SEM_AVISO_INSTALAR = {"login", "cadastro", "trocar_senha", "assinatura_pagar", "assinatura_retorno",
+                      "esqueci_senha", "nova_senha"}
 
 
 def _assinador_navegador():
