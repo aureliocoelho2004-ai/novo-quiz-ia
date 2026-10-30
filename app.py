@@ -1371,7 +1371,7 @@ def assine():
     """Landing de uma tela só (anúncios): planos anual e mensal."""
     economia = PLANOS["mensal"]["centavos"] * 12 - PLANOS["anual"]["centavos"]
     resposta = Response(render_template("assine.html", planos=PLANOS, economia=economia,
-                                        versao_video=VERSAO_VIDEO))
+                                        versao_video=VERSAO_VIDEO, url_canonica=url_publica("assine")))
     resposta.headers["Cache-Control"] = "public, max-age=600"
     return resposta
 
@@ -1432,6 +1432,40 @@ def cache_arquivos_fixos(resposta):
         resposta.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     elif request.path.startswith("/static/icons/"):
         resposta.headers["Cache-Control"] = "public, max-age=604800"
+    return resposta
+
+
+# --------------------------------------------------------------------------- #
+# Google: só a página de vendas (/assine) aparece nas buscas. Login, cadastro,
+# admin, quizzes e o resto do app ficam fora (noindex), para o resultado do
+# Google mostrar a página certa.
+# --------------------------------------------------------------------------- #
+PAGINAS_PUBLICAS = {"assine", "robots", "sitemap"}
+
+
+@app.get("/robots.txt")
+def robots():
+    texto = ("User-agent: *\n"
+             "Allow: /assine\n"
+             "Disallow: /admin\nDisallow: /api/\nDisallow: /meus-quizzes\nDisallow: /tarefas/\n"
+             "Disallow: /webhooks/\nDisallow: /m/\nDisallow: /assinar/\n"
+             f"\nSitemap: {url_publica('sitemap')}\n")
+    return Response(texto, mimetype="text/plain")
+
+
+@app.get("/sitemap.xml")
+def sitemap():
+    xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'
+           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
+           f'  <url><loc>{url_publica("assine")}</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n'
+           '</urlset>\n')
+    return Response(xml, mimetype="application/xml")
+
+
+@app.after_request
+def fora_do_google(resposta):
+    if request.endpoint not in PAGINAS_PUBLICAS and not request.path.startswith("/static/"):
+        resposta.headers["X-Robots-Tag"] = "noindex"
     return resposta
 
 
