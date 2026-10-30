@@ -35,6 +35,8 @@
             {% endif %}
         </header>
 
+        {#- Só para quem já está usando o app: no cadastro/login/pagamento o aviso atrapalha #}
+        {% if session.usuario and request.endpoint not in ('login', 'cadastro', 'assinatura', 'assinatura_pagar', 'assinatura_retorno', 'trocar_senha') %}
         <div id="instalar-app" class="hidden mb-4 rounded-xl border border-slate-600 bg-slate-900 p-3 text-sm">
             <div class="flex items-center gap-3">
                 <img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" class="w-10 h-10 rounded-xl">
@@ -58,6 +60,7 @@
                 <b>app.quizzify.com.br</b> no <b>Chrome</b> (Android) ou no <b>Safari</b> (iPhone).
             </p>
         </div>
+        {% endif %}
 
         {% if dias_para_vencer %}
         <a href="{{ url_for('assinatura') }}" class="block mb-4 text-sm rounded-xl p-3 bg-amber-900/60 text-amber-200 text-center">
