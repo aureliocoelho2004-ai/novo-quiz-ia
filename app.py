@@ -942,7 +942,7 @@ def admin():
                 # Conta de teste: sem troca de senha obrigatória, nunca admin, expira sozinha
                 expira = time.time() + horas * 3600
                 usuarios[nome] = {"senha": generate_password_hash(senha), "admin": False,
-                                  "trocar_senha": False, "expira_em": expira}
+                                  "trocar_senha": False, "expira_em": expira, "teste_horas": horas}
                 flash(f"Acesso de teste '{nome}' criado. Expira em {data_hora(expira)}.", "ok")
             else:
                 usuarios[nome] = {"senha": generate_password_hash(senha),
@@ -961,6 +961,7 @@ def admin():
             if not conta.get("expira_em"):        # teste já tinha acabado: volta a ser teste
                 conta.pop("assinante", None)
                 conta.pop("teste_acabou_em", None)
+                conta["teste_horas"] = 24
             expira = max(time.time(), conta.get("expira_em") or 0) + 24 * 3600
             conta["expira_em"] = expira
             flash(f"Acesso de '{nome}' prolongado até {data_hora(expira)}.", "ok")
@@ -1372,6 +1373,8 @@ def etapa_teste(conta, agora):
         return None
     restante = expira - agora
     if 0 < restante <= AVISO_TESTE_DIAS * DIA:
+        if (conta.get("teste_horas") or 999) <= 24:
+            return None                     # teste de 24h: só o aviso no app e o e-mail do fim
         etapa = "teste_antes"
     elif -JANELA_VENCIDA_DIAS * DIA < restante <= 0:
         etapa = "teste_fim"
