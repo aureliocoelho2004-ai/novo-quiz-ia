@@ -1568,7 +1568,6 @@ def ler_divulgacao(fresco=False):
 
 FAIXA_JS = """(function () {
   var c = %s;
-  try { if (sessionStorage.getItem('quizify-faixa-fechada')) return; } catch (e) {}
   function montar() {
     var st = document.createElement('style');
     st.textContent = '.qz-faixa{position:fixed;top:0;left:0;right:0;z-index:30;padding:10px 44px 10px 14px;background:#5920AB;color:#fff;'
@@ -1581,14 +1580,18 @@ FAIXA_JS = """(function () {
     var t = document.createElement('span'); t.textContent = c.texto + ' ';
     var d = document.createElement('b'); d.textContent = c.destaque;
     var a = document.createElement('a'); a.href = c.link; a.target = '_blank'; a.rel = 'noopener'; a.textContent = c.botao;
-    var x = document.createElement('button'); x.type = 'button'; x.setAttribute('aria-label', 'Fechar'); x.textContent = '\u2715';
+    var x = document.createElement('button'); x.type = 'button'; x.setAttribute('aria-label', 'Fechar'); x.textContent = '\\u2715';
     f.appendChild(t); f.appendChild(d); f.appendChild(document.createElement('br')); f.appendChild(a); f.appendChild(x);
     document.body.appendChild(f);
     var antes = parseFloat(getComputedStyle(document.body).paddingTop) || 0;
-    function ajustar() { document.body.style.paddingTop = (antes + f.offsetHeight + 8) + 'px'; }
+    function ajustar() { document.body.style.paddingTop = (f.style.display === 'none' ? antes : antes + f.offsetHeight + 8) + 'px'; }
+    function mostrar() { f.style.display = ''; ajustar(); }
     ajustar(); window.addEventListener('resize', ajustar);
-    x.onclick = function () { f.remove(); document.body.style.paddingTop = antes + 'px';
-      try { sessionStorage.setItem('quizify-faixa-fechada', '1'); } catch (e) {} };
+    // fechar esconde só até o aluno refazer o quiz (ou recomeçar os flashcards)
+    x.onclick = function () { f.style.display = 'none'; ajustar(); };
+    document.addEventListener('click', function (e) {
+      if (e.target.closest && e.target.closest('#btn-tudo, #btn-erradas, #btn-recomecar')) mostrar();
+    });
   }
   if (document.body) montar(); else document.addEventListener('DOMContentLoaded', montar);
 })();"""
