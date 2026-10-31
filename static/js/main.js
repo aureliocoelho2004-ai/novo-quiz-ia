@@ -83,6 +83,11 @@
                 return;
             }
             const json = await resposta.json().catch(() => ({}));
+            if (resposta.status === 402 && json.assinar) {     // teste grátis acabou: leva aos planos
+                mostrarStatus(`🎁 ${json.erro}`, 'text-amber-300');
+                status.insertAdjacentHTML('beforeend', ` <a href="${json.assinar}" class="underline font-bold">Ver planos</a>`);
+                return;
+            }
             if (!resposta.ok) throw new Error(json.erro || `Erro no servidor (${resposta.status}).`);
 
             resultado = json;

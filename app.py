@@ -33,6 +33,8 @@ MIN_ITENS, MAX_ITENS = 5, 50
 MAX_CARACTERES_TEXTO = 60_000
 LIMITE_DIARIO = int(os.environ.get("LIMITE_DIARIO", 50))           # gerações por utilizador por dia
 LIMITE_TESTE = int(os.environ.get("LIMITE_TESTE", 10))             # gerações por dia em contas de teste
+TESTE_GRATIS_HORAS = int(os.environ.get("TESTE_GRATIS_HORAS", 48))   # teste grátis pelo site (sem cartão)
+TESTE_GRATIS_QUIZZES = int(os.environ.get("TESTE_GRATIS_QUIZZES", 3))
 DURACOES_TESTE = {"24h": 24, "3d": 72, "7d": 168}                  # opções do painel, em horas
 INTERVALO_SEGUNDOS = int(os.environ.get("INTERVALO_SEGUNDOS", 30))  # espera entre gerações
 FUSO_BRASIL = timezone(timedelta(hours=-3))
@@ -273,7 +275,8 @@ def entrar_na_sessao(nome, conta):
     session.clear()
     session.permanent = True
     session.update(usuario=nome, admin=bool(conta.get("admin")), trocar_senha=bool(conta.get("trocar_senha")),
-                   expira_em=conta.get("expira_em"), tem_email=bool(email_da_conta(nome, conta)))
+                   expira_em=conta.get("expira_em"), tem_email=bool(email_da_conta(nome, conta)),
+                   teste_cota=conta.get("teste_cota"), teste_usados=conta.get("teste_usados", 0))
     atualizar_sessao_assinatura(conta)
 
 
@@ -1029,10 +1032,12 @@ def plano_escolhido():
 @app.route("/cadastro", methods=["GET", "POST"])
 def cadastro():
     plano_id = plano_escolhido()
+    gratis = request.values.get("teste") == "1" and not plano_id
     if session.get("usuario"):
         return redirect(url_for("assinatura", plano=plano_id) if plano_id else url_for("index"))
+    ctx = dict(plano_id=plano_id, planos=PLANOS, gratis=gratis, horas=TESTE_GRATIS_HORAS, cota=TESTE_GRATIS_QUIZZES)
     if request.method == "GET":
-        return render_template("cadastro.html", plano_id=plano_id, planos=PLANOS)
+        return render_template("cadastro.html", **ctx)
 
     email = request.form.get("email", "").strip().lower()
     senha = request.form.get("senha", "")
@@ -1051,6 +1056,11 @@ def cadastro():
     else:
         nova = {"senha": generate_password_hash(senha), "admin": False, "trocar_senha": False,
                 "assinante": True, "pago_ate": 0, "criado_em": agora, "origem": origem_atual()}
+        if gratis:   # teste grátis pelo site: 3 quizzes em 48 horas, sem cartão
+            nova = {"senha": nova["senha"], "admin": False, "trocar_senha": False, "criado_em": agora,
+                    "origem": nova["origem"], "expira_em": agora + TESTE_GRATIS_HORAS * 3600,
+                    "teste_horas": TESTE_GRATIS_HORAS, "teste_cota": TESTE_GRATIS_QUIZZES, "teste_usados": 0,
+                    "teste_site": True}
 
         def criar(usuarios):
             if email in usuarios:
@@ -1063,17 +1073,18 @@ def cadastro():
         except Exception:
             log.exception("Falha ao criar conta")
             flash("Não foi possível criar a conta agora. Tente novamente.", "erro")
-            return render_template("cadastro.html", email=email, plano_id=plano_id, planos=PLANOS), 503
+            return render_template("cadastro.html", email=email, **ctx), 503
         if criada is not False:
             somar_metricas(nova["origem"], contas=1)
         if criada is False:
             flash("Já existe uma conta com este e-mail. Entre com a sua senha.", "erro")
             return redirect(url_for("login", proximo=url_for("assinatura", plano=plano_id) if plano_id else None))
         registrar_tentativa(_cadastros, ip, agora)
-        session.clear()
-        session.permanent = True
-        session.update(usuario=email, admin=False, trocar_senha=False, expira_em=None)
-        atualizar_sessao_assinatura(nova)
+        entrar_na_sessao(email, nova)
+        if gratis:
+            flash(f"Seu teste grátis começou! Você tem {TESTE_GRATIS_QUIZZES} quizzes para criar nas próximas "
+                  f"{TESTE_GRATIS_HORAS} horas. 🎉", "ok")
+            return redirect(url_for("index"))
         # Veio da landing com um plano escolhido: vai direto para o pagamento dele.
         if plano_id and INFINITEPAY_HANDLE:
             try:
@@ -1082,7 +1093,7 @@ def cadastro():
                 log.exception("Falha ao criar checkout após cadastro")
                 flash("Conta criada! Não foi possível abrir o pagamento agora; tente novamente abaixo.", "erro")
         return redirect(url_for("assinatura", plano=plano_id))
-    return render_template("cadastro.html", email=email, plano_id=plano_id, planos=PLANOS), 400
+    return render_template("cadastro.html", email=email, **ctx), 400
 
 
 @app.get("/assinatura")
@@ -1389,8 +1400,10 @@ def etapa_teste(conta, agora):
     if not expira or conta.get("admin"):
         return None
     restante = expira - agora
-    if 0 < restante <= AVISO_TESTE_DIAS * DIA:
-        if (conta.get("teste_horas") or 999) <= 24:
+    horas = conta.get("teste_horas") or 999
+    janela = DIA if horas <= 48 else AVISO_TESTE_DIAS * DIA      # teste de 48h: aviso no último dia
+    if 0 < restante <= janela:
+        if horas <= 24:
             return None                     # teste de 24h: só o aviso no app e o e-mail do fim
         etapa = "teste_antes"
     elif -JANELA_VENCIDA_DIAS * DIA < restante <= 0:
@@ -1629,7 +1642,10 @@ def dados_teste():
     else:
         dias = int(restante // DIA) + 1
         texto = f"em {dias} dias"
-    return {"teste_aviso": texto, "teste_pedir_email": not session.get("tem_email") and "@" not in usuario}
+    cota = session.get("teste_cota")
+    restam = max(0, cota - (session.get("teste_usados") or 0)) if cota is not None else None
+    return {"teste_aviso": texto, "teste_restam": restam, "teste_cota": cota,
+            "teste_pedir_email": not session.get("tem_email") and "@" not in usuario}
 
 
 @app.post("/meu-email")
@@ -1861,7 +1877,8 @@ def assine():
     economia = PLANOS["mensal"]["centavos"] * 12 - PLANOS["anual"]["centavos"]
     resposta = Response(render_template("assine.html", planos=PLANOS, economia=economia,
                                         versao_video=VERSAO_VIDEO, url_canonica=url_publica("assine"),
-                                        dados_estruturados=dados_estruturados()))
+                                        dados_estruturados=dados_estruturados(),
+                                        cota=TESTE_GRATIS_QUIZZES, horas=TESTE_GRATIS_HORAS))
     resposta.headers["Cache-Control"] = "public, max-age=600"
     return resposta
 
@@ -1981,6 +1998,9 @@ def gerar():
         return jsonify(erro="A sua assinatura não está ativa. Renove para continuar."), 402
     sem_limite = bool(conta.get("admin"))
     limite = LIMITE_TESTE if conta.get("expira_em") else LIMITE_DIARIO
+    if conta.get("teste_cota") is not None and conta.get("expira_em") and conta.get("teste_usados", 0) >= conta["teste_cota"]:
+        return jsonify(erro=f"Seus {conta['teste_cota']} quizzes grátis acabaram. Assine para continuar criando "
+                            "— tudo o que você criou fica guardado.", assinar=url_for("assinatura", plano="anual")), 402
 
     arquivos = [a for a in request.files.getlist("arquivos") if a and a.filename]
     tipo = request.form.get("tipo", "quiz")
@@ -2034,6 +2054,17 @@ def gerar():
         link, caminho = publicar_firebase(conteudo_html, tipo)
         if not sem_limite:
             registrar_geracao(usuario)
+        if conta.get("teste_cota") is not None and conta.get("expira_em"):
+            def gastar(usuarios):
+                c = usuarios.get(usuario)
+                if not c: return False
+                c["teste_usados"] = c.get("teste_usados", 0) + 1
+                return c
+            try:
+                c = alterar_usuarios(gastar)
+                if c: session["teste_usados"] = c["teste_usados"]
+            except Exception:
+                log.exception("Falha ao contar quiz do teste de %s", usuario)
         item = None
         if link:
             item = {"id": uuid.uuid4().hex[:12], "titulo": titulo, "tipo": tipo, "total": len(itens),

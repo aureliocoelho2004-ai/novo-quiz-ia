@@ -116,7 +116,12 @@
 
         {% if teste_aviso %}
         <div class="mb-4 text-sm rounded-xl p-3 bg-amber-900/60 text-amber-200 text-center">
+            {% if teste_restam is not none %}
+            {% if teste_restam > 0 %}🎁 Teste grátis: <b>{{ 'resta' if teste_restam == 1 else 'restam' }} {{ teste_restam }} de {{ teste_cota }} {{ 'quiz' if teste_cota == 1 else 'quizzes' }}</b> · acaba {{ teste_aviso }}.
+            {% else %}🎁 Seus quizzes grátis acabaram.{% endif %}
+            {% else %}
             🧪 Seu teste grátis acaba <b>{{ teste_aviso }}</b>.
+            {% endif %}
             <a href="{{ url_for('assinatura', plano='anual') }}" class="underline font-bold">Assinar agora</a>
             {% if teste_pedir_email %}
             <form method="post" action="{{ url_for('meu_email') }}" class="flex gap-2 mt-2">

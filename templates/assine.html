@@ -77,6 +77,12 @@
     .fatos li { display: flex; gap: 10px; align-items: baseline; }
     .fatos li::before { content: "✓"; color: var(--lima); font-weight: 800; }
 
+    .gratis { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 64px;
+              padding: clamp(10px, 1.8vh, 16px) 20px; border-radius: 14px; background: var(--lima); color: #160B29; text-decoration: none;
+              font-weight: 800; font-size: clamp(18px, 2.5vh, 22px); margin-top: clamp(4px, 1vh, 12px); transition: transform .15s ease; }
+    .gratis small { font-weight: 400; font-size: clamp(13px, 1.7vh, 15px); color: #2d3a00; }
+    .gratis:hover { transform: translateY(-2px); }
+    .gratis:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
     .planos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: clamp(4px, 1vh, 12px); }
     .plano {
         display: flex; flex-direction: column; justify-content: center; gap: 2px;
@@ -129,7 +135,7 @@
     .testar:hover { background: #d4ff6a; }
     .testar:focus-visible { outline: 3px solid var(--branco); outline-offset: 3px; }
     /* o botão final do teste destaca o plano anual */
-    .plano.anual.chamar { outline: 3px solid var(--lima); outline-offset: 4px; animation: chamar .5s ease-in-out 4; }
+    .plano.anual.chamar, .gratis.chamar { outline: 3px solid #fff; outline-offset: 4px; animation: chamar .5s ease-in-out 4; }
     @keyframes chamar { 50% { transform: scale(1.06); } }
 
     /* ---------- o mini-quiz por cima da página ---------- */
@@ -145,7 +151,7 @@
     @media (max-width: 500px) { .teste { padding: 0; } .teste-caixa { border-radius: 0; border: 0; height: 100%; } }
 
     @media (prefers-reduced-motion: reduce) {
-        .plano.anual.chamar { animation: none; }
+        .plano.anual.chamar, .gratis.chamar { animation: none; }
         .plano { transition: none; }
         .plano.anual { animation: none; box-shadow: 0 0 0 3px var(--lima); }
     }
@@ -185,10 +191,11 @@
         <p class="sub">Envie PDF, Word, PowerPoint ou a foto do caderno. A IA cria quizzes e flashcards
             prontos para aplicar com os alunos ou estudar em casa.</p>
         <ul class="fatos">
-            <li>Até 5 arquivos de uma vez</li>
             <li>Link para o aluno responder no celular</li>
             <li>Correção na hora, com a explicação de cada resposta</li>
         </ul>
+        <a class="gratis" href="{{ url_for('cadastro', teste=1) }}">🎁 Começar grátis
+            <small>{{ cota }} quizzes em {{ horas }} horas · sem cartão</small></a>
         <div class="planos">
             <a class="plano anual" href="{{ url_for('assinar_plano', plano_id='anual') }}">
                 Assinar agora
@@ -216,7 +223,7 @@
         const quiz = document.getElementById('teste-quiz');
         const abrir = document.getElementById('abrir-teste');
         const fechar = document.getElementById('fechar-teste');
-        const anual = document.querySelector('.plano.anual');
+        const anual = document.querySelector('.gratis');   // fim do mini-quiz: destaca o teste grátis
         const ENDERECO = '{{ url_for('demo', destino='assine', v=versao_video) }}';
 
         function abrirTeste() {

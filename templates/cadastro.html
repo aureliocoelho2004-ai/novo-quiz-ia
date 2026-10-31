@@ -12,6 +12,12 @@
         <p class="text-xs text-slate-400 mt-1">Depois de criar a conta, segue direto para o pagamento (Pix ou cartão).
             <a href="{{ url_for('cadastro') }}" class="underline">Trocar plano</a></p>
     </div>
+    {% elif gratis %}
+    <input type="hidden" name="teste" value="1">
+    <div class="rounded-xl border border-lima bg-slate-900 p-3 text-center">
+        <p class="text-sm text-slate-200"><b>🎁 Teste grátis: {{ cota }} quizzes em {{ horas }} horas</b></p>
+        <p class="text-xs text-slate-400 mt-1">Sem cartão. Gostou? Assine depois e continue com tudo o que criou.</p>
+    </div>
     {% else %}
     <p class="text-sm text-slate-400 text-center">Depois de criar a conta, escolha o plano e pague por Pix ou cartão.</p>
     {% endif %}
@@ -27,7 +33,7 @@
                class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
     </div>
     {% endfor %}
-    <button class="w-full bg-lima hover:bg-lima-claro text-tinta font-bold py-3 rounded-xl transition shadow-lg shadow-lima/20">Criar conta</button>
+    <button class="w-full bg-lima hover:bg-lima-claro text-tinta font-bold py-3 rounded-xl transition shadow-lg shadow-lima/20">{{ "Começar meu teste grátis" if gratis else "Criar conta" }}</button>
 </form>
 <p class="text-sm text-center text-slate-400 mt-6">Já tem conta?
     <a href="{{ url_for('login', proximo=url_for('assinatura', plano=plano_id)) if plano_id else url_for('login') }}" class="text-lima font-semibold underline">Entrar</a></p>

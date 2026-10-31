@@ -107,7 +107,7 @@
                         {% else %}<span class="text-slate-500">💳 sem pagamento</span>{% endif %}
                     {% elif conta.expira_em %}
                         {% if conta.expira_em <= agora %}<span class="text-red-400">⛔ teste expirado</span>
-                        {% else %}<span class="text-amber-300">⏳ teste até {{ conta.expira_em | data_hora }}</span>{% endif %}
+                        {% else %}<span class="text-amber-300">⏳ teste{% if conta.teste_site %} grátis (site, {{ conta.teste_usados or 0 }}/{{ conta.teste_cota }}){% endif %} até {{ conta.expira_em | data_hora }}</span>{% endif %}
                     {% elif conta.trocar_senha %}· senha provisória{% endif %}
                 </span>
             </summary>
