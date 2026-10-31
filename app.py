@@ -1829,12 +1829,36 @@ def demo_video():
     return resposta
 
 
+SITE_MARCA = "https://quizzify.com.br/"
+# Perfis oficiais (Instagram, Facebook, YouTube...), separados por vírgula, no Render.
+REDES_SOCIAIS = [u.strip() for u in os.environ.get("REDES_SOCIAIS", "").split(",") if u.strip()]
+
+
+def dados_estruturados():
+    """schema.org para o Google ligar a marca Quizzify (e a grafia Quizify) a este site."""
+    logo = url_for("static", filename="icons/icon-512.png", _external=True).replace("http://", "https://")
+    org = {"@type": "Organization", "@id": SITE_MARCA + "#marca", "name": "Quizzify",
+           "alternateName": ["Quizify", "Quizzify App", "Quizzify IA"], "url": SITE_MARCA, "logo": logo,
+           "email": EMAIL_SUPORTE, "areaServed": "BR"}
+    if REDES_SOCIAIS:
+        org["sameAs"] = REDES_SOCIAIS
+    app_ = {"@type": "SoftwareApplication", "name": "Quizzify", "alternateName": "Quizify",
+            "applicationCategory": "EducationalApplication", "operatingSystem": "Web, Android, iOS",
+            "url": url_publica("assine"), "inLanguage": "pt-BR", "publisher": {"@id": SITE_MARCA + "#marca"},
+            "description": "Transforma PDF, Word, PowerPoint e fotos do caderno em quizzes e flashcards com IA, "
+                           "com correção e explicação, para professores, pais e estudantes.",
+            "offers": [{"@type": "Offer", "name": f"Plano {p['nome']}", "price": f"{p['centavos'] / 100:.2f}",
+                        "priceCurrency": "BRL"} for p in PLANOS.values()]}
+    return {"@context": "https://schema.org", "@graph": [org, app_]}
+
+
 @app.get("/assine")
 def assine():
     """Landing de uma tela só (anúncios): planos anual e mensal."""
     economia = PLANOS["mensal"]["centavos"] * 12 - PLANOS["anual"]["centavos"]
     resposta = Response(render_template("assine.html", planos=PLANOS, economia=economia,
-                                        versao_video=VERSAO_VIDEO, url_canonica=url_publica("assine")))
+                                        versao_video=VERSAO_VIDEO, url_canonica=url_publica("assine"),
+                                        dados_estruturados=dados_estruturados()))
     resposta.headers["Cache-Control"] = "public, max-age=600"
     return resposta
 

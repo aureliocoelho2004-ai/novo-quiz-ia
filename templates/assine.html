@@ -11,10 +11,15 @@
 <meta property="og:url" content="{{ url_canonica }}">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="description" content="Envie PDF, Word, PowerPoint ou foto do caderno e a IA cria quizzes e flashcards prontos. Plano anual por R$ {{ reais(anual.centavos) }} ou mensal por R$ {{ reais(mensal.centavos) }}.">
+<meta name="description" content="Quizzify: envie PDF, Word, PowerPoint ou foto do caderno e a IA cria quizzes e flashcards prontos. Plano anual por R$ {{ reais(anual.centavos) }} ou mensal por R$ {{ reais(mensal.centavos) }}.">
 <meta property="og:title" content="Quizzify: seu material vira quiz em segundos">
 <meta property="og:description" content="PDF, Word, PowerPoint ou foto do caderno viram quizzes e flashcards com IA.">
-<meta property="og:image" content="{{ url_for('static', filename='icons/icon-512.png', _external=True) }}">
+<meta property="og:image" content="{{ url_for('static', filename='img/og-quizzify.png', _external=True) }}">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta property="og:site_name" content="Quizzify">
+<meta property="og:locale" content="pt_BR">
+{#- Dados estruturados: ajudam o Google a entender que "Quizzify" (e a grafia "Quizify") é esta marca/app. #}
+<script type="application/ld+json">{{ dados_estruturados | tojson }}</script>
 <meta name="theme-color" content="#000000">
 <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/favicon-32.png') }}">
 <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
