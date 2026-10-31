@@ -5,11 +5,16 @@
 <section class="space-y-5">
     <h2 class="text-xl font-bold text-center">💳 Assinatura</h2>
 
-    {% if not conta.assinante %}
+    {% if not conta.assinante and not conta.expira_em %}
     <p class="text-sm text-center text-slate-300">A sua conta tem acesso liberado pelo administrador.</p>
     <a href="{{ url_for('index') }}" class="block text-center bg-red-500 hover:bg-red-600 font-bold py-3 rounded-xl">Ir para o Quizify</a>
     {% else %}
-        {% if ativa %}
+        {% if conta.expira_em and not conta.assinante %}
+        <div class="rounded-xl p-4 bg-amber-900/50 text-center">
+            <p class="font-bold text-amber-200">🧪 Teste grátis até {{ conta.expira_em | data_hora }}</p>
+            <p class="text-sm text-slate-200 mt-1">Assine agora e continue sem interrupção — os seus quizzes ficam guardados.</p>
+        </div>
+        {% elif ativa %}
         <div class="rounded-xl p-4 bg-green-900/50 text-center">
             <p class="font-bold text-green-300">✅ Assinatura ativa</p>
             <p class="text-sm text-slate-200 mt-1">Acesso liberado até <b>{{ conta.pago_ate | data_hora }}</b>.</p>
@@ -20,6 +25,11 @@
         <div class="rounded-xl p-4 bg-red-900/50 text-center">
             <p class="font-bold text-red-300">⛔ Assinatura vencida</p>
             <p class="text-sm text-slate-200 mt-1">Venceu em {{ conta.pago_ate | data_hora }}. Renove para voltar a criar quizzes{% if total_quizzes %} e recuperar o acesso aos seus <b>{{ total_quizzes }} quiz{{ 'zes' if total_quizzes > 1 }}</b> salvos{% endif %}.</p>
+        </div>
+        {% elif conta.teste_acabou_em %}
+        <div class="rounded-xl p-4 bg-red-900/50 text-center">
+            <p class="font-bold text-red-300">Seu teste acabou 💾</p>
+            <p class="text-sm text-slate-200 mt-1">Escolha um plano para voltar a criar quizzes{% if total_quizzes %} e acessar os seus <b>{{ total_quizzes }} quiz{{ 'zes' if total_quizzes > 1 }}</b> salvos{% endif %}. Pix ou cartão, liberação imediata.</p>
         </div>
         {% else %}
         <p class="text-sm text-center text-slate-300">Escolha um plano para liberar o seu acesso. Pagamento por Pix ou cartão, com liberação imediata.</p>

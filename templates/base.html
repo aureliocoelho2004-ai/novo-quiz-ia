@@ -66,6 +66,19 @@
         </div>
         {% endif %}
 
+        {% if teste_aviso %}
+        <div class="mb-4 text-sm rounded-xl p-3 bg-amber-900/60 text-amber-200 text-center">
+            🧪 Seu teste grátis acaba <b>{{ teste_aviso }}</b>.
+            <a href="{{ url_for('assinatura', plano='anual') }}" class="underline font-bold">Assinar agora</a>
+            {% if teste_pedir_email %}
+            <form method="post" action="{{ url_for('meu_email') }}" class="flex gap-2 mt-2">
+                <input name="email" type="email" required placeholder="Seu e-mail para receber os avisos" autocapitalize="none" maxlength="120"
+                       class="flex-1 min-w-0 bg-slate-900 border border-amber-700 rounded-lg p-2 text-white text-sm">
+                <button class="bg-amber-600 hover:bg-amber-500 text-white font-bold px-3 rounded-lg">Salvar</button>
+            </form>
+            {% endif %}
+        </div>
+        {% endif %}
         {% if dias_para_vencer %}
         <a href="{{ url_for('assinatura') }}" class="block mb-4 text-sm rounded-xl p-3 bg-amber-900/60 text-amber-200 text-center">
             ⏳ A sua assinatura vence em {{ dias_para_vencer }} dia{{ 's' if dias_para_vencer > 1 }}. <b class="underline">Renovar agora</b>

@@ -7,8 +7,8 @@
     <form method="post" class="space-y-3 bg-slate-900 p-4 rounded-xl border border-slate-700">
         <h3 class="font-semibold">Novo utilizador</h3>
         <input type="hidden" name="acao" value="criar">
-        <input name="usuario" required placeholder="nome (ex.: prof.ana)" pattern="[a-z0-9._\-]{3,30}" autocapitalize="none"
-               title="3 a 30 letras minúsculas, números, ponto, hífen ou _"
+        <input name="usuario" required placeholder="e-mail da pessoa (ex.: ana@gmail.com)" autocapitalize="none" maxlength="120"
+               title="Use o e-mail: assim ela recebe os avisos de fim do teste"
                class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
         <input name="senha" type="password" required minlength="8" placeholder="senha provisória (mín. 8)" autocomplete="new-password"
                class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
@@ -24,7 +24,7 @@
         <label id="linha-admin" class="flex items-center gap-2 text-sm text-slate-300">
             <input type="checkbox" name="admin" value="1" class="accent-red-500"> Administrador
         </label>
-        <p class="text-xs text-slate-400">Contas de teste entram direto com a senha que definir aqui, expiram sozinhas e têm limite de {{ config_limite_teste }} conteúdos por dia.</p>
+        <p class="text-xs text-slate-400">Use o <b>e-mail</b> da pessoa como nome: ela recebe aviso 2 dias antes do fim do teste e no dia em que acaba. Quando o teste acaba, ela entra direto na página dos planos e mantém os quizzes.<br>Contas de teste entram direto com a senha que definir aqui, expiram sozinhas e têm limite de {{ config_limite_teste }} conteúdos por dia.</p>
         <button class="w-full bg-red-500 hover:bg-red-600 font-bold py-2.5 rounded-xl transition">Adicionar utilizador</button>
     </form>
 
@@ -75,13 +75,14 @@
         {% for nome, conta in usuarios %}
         <details class="bg-slate-900 rounded-xl border border-slate-700">
             <summary class="cursor-pointer p-3 flex justify-between items-center">
-                <span>{{ nome }}</span>
+                <span class="break-all">{{ nome }}{% if conta.email %} <span class="text-xs text-slate-500">· {{ conta.email }}</span>{% endif %}</span>
                 <span class="text-xs text-slate-400">
                     {% if conta.origem %}<span class="text-slate-500">{{ conta.origem }} ·</span>{% endif %}
                     {% if conta.admin %}👑 admin{% endif %}
                     {% if conta.assinante %}
                         {% if conta.pago_ate and conta.pago_ate > agora %}<span class="text-green-400">💳 até {{ conta.pago_ate | data_hora }}</span>
                         {% elif conta.pago_ate %}<span class="text-red-400">💳 vencida</span>
+                        {% elif conta.teste_acabou_em %}<span class="text-red-400">⛔ teste acabou (não assinou)</span>
                         {% else %}<span class="text-slate-500">💳 sem pagamento</span>{% endif %}
                     {% elif conta.expira_em %}
                         {% if conta.expira_em <= agora %}<span class="text-red-400">⛔ teste expirado</span>
@@ -104,7 +105,16 @@
                     <button class="w-full bg-green-700 hover:bg-green-600 py-2 rounded-xl text-sm font-semibold">Liberar +30 dias (manual) 💳</button>
                 </form>
                 {% endif %}
-                {% if conta.expira_em %}
+                {% if '@' not in nome %}
+                <form method="post" class="flex gap-2">
+                    <input type="hidden" name="acao" value="email">
+                    <input type="hidden" name="usuario" value="{{ nome }}">
+                    <input name="email" type="email" value="{{ conta.email or '' }}" placeholder="e-mail para avisos" autocapitalize="none"
+                           class="flex-1 min-w-0 bg-slate-800 border border-slate-700 rounded-xl p-2 text-sm text-white">
+                    <button class="bg-slate-600 hover:bg-slate-500 px-3 rounded-xl text-sm font-semibold">Salvar</button>
+                </form>
+                {% endif %}
+                {% if conta.expira_em or (conta.teste_acabou_em and not conta.pago_ate) %}
                 <form method="post">
                     <input type="hidden" name="acao" value="renovar">
                     <input type="hidden" name="usuario" value="{{ nome }}">

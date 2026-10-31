@@ -246,6 +246,34 @@ def expirou(conta):
     return bool(conta.get("expira_em")) and time.time() >= conta["expira_em"]
 
 
+def email_da_conta(nome, conta):
+    """E-mail para avisos: o campo "email" ou o próprio nome, se for um e-mail."""
+    return conta.get("email") or (nome if "@" in nome else None)
+
+
+def converter_teste_expirado(nome):
+    """Teste acabou: a conta vira assinante sem pagamento (mantém os quizzes),
+    e a pessoa cai na página dos planos em vez de ficar bloqueada."""
+    def converter(usuarios):
+        conta = usuarios.get(nome)
+        if not conta:
+            return False
+        if conta.get("expira_em") and time.time() >= conta["expira_em"]:
+            conta.pop("expira_em")
+            conta.update(assinante=True, pago_ate=conta.get("pago_ate") or 0, teste_acabou_em=time.time())
+            conta.setdefault("origem", "teste")
+        return conta
+    return alterar_usuarios(converter)
+
+
+def entrar_na_sessao(nome, conta):
+    session.clear()
+    session.permanent = True
+    session.update(usuario=nome, admin=bool(conta.get("admin")), trocar_senha=bool(conta.get("trocar_senha")),
+                   expira_em=conta.get("expira_em"), tem_email=bool(email_da_conta(nome, conta)))
+    atualizar_sessao_assinatura(conta)
+
+
 def assinatura_ativa(conta):
     """Contas de assinante só funcionam com pagamento em dia; as outras sempre."""
     return not conta.get("assinante") or conta.get("pago_ate", 0) > time.time()
@@ -330,7 +358,7 @@ def assinatura_paga_agora():
 
 # Com a assinatura vencida a pessoa só pode pagar, trocar a senha e sair. "Meus quizzes"
 # fica bloqueado até renovar (o histórico não é apagado e volta com o pagamento).
-ROTAS_SEM_ASSINATURA = {"assinatura", "assinatura_pagar", "assinatura_retorno", "trocar_senha", "logout"}
+ROTAS_SEM_ASSINATURA = {"assinatura", "assinatura_pagar", "assinatura_retorno", "trocar_senha", "logout", "meu_email"}
 
 
 def login_obrigatorio(view):
@@ -342,11 +370,22 @@ def login_obrigatorio(view):
             # full_path mantém os parâmetros (ex.: retorno do pagamento da InfinitePay)
             return redirect(url_for("login", proximo=request.full_path.rstrip("?")))
         if session.get("expira_em") and time.time() >= session["expira_em"]:
-            session.clear()
-            flash("O seu acesso de teste expirou. Fale com o administrador para continuar.", "erro")
             if request.path.startswith("/api/"):
-                return jsonify(erro="O seu acesso de teste expirou."), 401
-            return redirect(url_for("login"))
+                return jsonify(erro="O seu teste acabou. Escolha um plano para continuar."), 402
+            try:
+                conta = converter_teste_expirado(session["usuario"])
+            except Exception:
+                log.exception("Falha ao converter teste de %s", session["usuario"])
+                session.clear()
+                return redirect(url_for("login"))
+            if not conta:
+                session.clear()
+                return redirect(url_for("login"))
+            entrar_na_sessao(session["usuario"], conta)
+            if conta.get("expira_em") or not conta.get("assinante") or (conta.get("pago_ate") or 0) > time.time():
+                return view(*args, **kwargs)      # teste prolongado, ou já assinou
+            flash("O seu teste acabou. Escolha um plano para continuar — os seus quizzes estão guardados. 💾", "erro")
+            return redirect(url_for("assinatura", plano="anual"))
         if session.get("trocar_senha") and request.endpoint not in ("trocar_senha", "logout"):
             return redirect(url_for("trocar_senha"))
         if (session.get("assinante") and session.get("pago_ate", 0) <= time.time()
@@ -679,6 +718,9 @@ def confirmar_pagamento(pedido_id, transacao, slug):
             return False
         conta["pago_ate"] = max(time.time(), conta.get("pago_ate", 0)) + pedido["dias"] * DIA
         conta["plano"] = pedido["plano"]
+        if conta.get("expira_em") or conta.get("teste_acabou_em"):   # assinou durante/depois do teste
+            conta.pop("expira_em", None)
+            conta["assinante"] = True
         return conta
 
     try:
@@ -688,9 +730,10 @@ def confirmar_pagamento(pedido_id, transacao, slug):
         raise
     if conta:
         somar_metricas(conta.get("origem"), pagamentos=1, receita_centavos=pedido["centavos"])
-        enviar_boas_vindas(pedido["usuario"], dict(conta))
+        enviar_boas_vindas(email_da_conta(pedido["usuario"], conta) or "", dict(conta), pedido["usuario"])
     if conta and has_request_context() and session.get("usuario") == pedido["usuario"]:
         atualizar_sessao_assinatura(conta)
+        session["expira_em"] = None
     return "pago"
 
 
@@ -815,17 +858,19 @@ def login():
         registrar_tentativa(_tentativas, ip)
         flash("Utilizador ou senha incorretos.", "erro")
         return render_template("login.html", usuario=nome), 401
-    if expirou(conta):
-        flash("O seu acesso de teste expirou. Fale com o administrador para continuar.", "erro")
-        return render_template("login.html", usuario=nome), 403
-
     with _trava_contadores:
         _tentativas.pop(ip, None)
-    session.clear()
-    session.permanent = True
-    session.update(usuario=nome, admin=bool(conta.get("admin")), trocar_senha=bool(conta.get("trocar_senha")),
-                   expira_em=conta.get("expira_em"))
-    atualizar_sessao_assinatura(conta)
+    if expirou(conta):
+        try:
+            conta = converter_teste_expirado(nome) or conta
+        except Exception:
+            log.exception("Falha ao converter teste de %s", nome)
+            flash("Não foi possível entrar agora. Tente novamente.", "erro")
+            return render_template("login.html", usuario=nome), 503
+        entrar_na_sessao(nome, conta)
+        flash("O seu teste acabou. Escolha um plano para continuar — os seus quizzes estão guardados. 💾", "erro")
+        return redirect(url_for("assinatura", plano="anual"))
+    entrar_na_sessao(nome, conta)
     proximo = request.args.get("proximo", "")
     return redirect(proximo if proximo.startswith("/") and not proximo.startswith("//") else url_for("index"))
 
@@ -887,8 +932,8 @@ def admin():
         nome = request.form.get("usuario", "").strip().lower()
         senha = request.form.get("senha", "")
         if acao == "criar":
-            if not re.fullmatch(r"[a-z0-9._-]{3,30}", nome):
-                flash("Nome inválido: use 3 a 30 letras minúsculas, números, ponto, hífen ou _.", "erro")
+            if not (re.fullmatch(r"[a-z0-9._-]{3,30}", nome) or (EMAIL_VALIDO.fullmatch(nome) and len(nome) <= 120)):
+                flash("Use o e-mail da pessoa (recomendado) ou um nome de 3 a 30 letras minúsculas, números, ponto, hífen ou _.", "erro")
             elif nome in usuarios:
                 flash(f"O utilizador '{nome}' já existe.", "erro")
             elif not senha_valida(senha):
@@ -910,14 +955,29 @@ def admin():
                 usuarios[nome].update(senha=generate_password_hash(senha),
                                       trocar_senha=not usuarios[nome].get("expira_em"))
                 flash(f"Senha de '{nome}' redefinida.", "ok")
-        elif acao == "renovar" and usuarios.get(nome, {}).get("expira_em"):
-            expira = max(time.time(), usuarios[nome]["expira_em"]) + 24 * 3600
-            usuarios[nome]["expira_em"] = expira
+        elif acao == "renovar" and (usuarios.get(nome, {}).get("expira_em") or (
+                usuarios.get(nome, {}).get("teste_acabou_em") and not usuarios[nome].get("pago_ate"))):
+            conta = usuarios[nome]
+            if not conta.get("expira_em"):        # teste já tinha acabado: volta a ser teste
+                conta.pop("assinante", None)
+                conta.pop("teste_acabou_em", None)
+            expira = max(time.time(), conta.get("expira_em") or 0) + 24 * 3600
+            conta["expira_em"] = expira
             flash(f"Acesso de '{nome}' prolongado até {data_hora(expira)}.", "ok")
         elif acao == "liberar30" and usuarios.get(nome, {}).get("assinante"):
             conta = usuarios[nome]
             conta["pago_ate"] = max(time.time(), conta.get("pago_ate", 0)) + 30 * DIA
             flash(f"Assinatura de '{nome}' liberada até {data_hora(conta['pago_ate'])}.", "ok")
+        elif acao == "email" and nome in usuarios:
+            email = request.form.get("email", "").strip().lower()
+            if email and not EMAIL_VALIDO.fullmatch(email):
+                flash("E-mail inválido.", "erro")
+            else:
+                if email:
+                    usuarios[nome]["email"] = email
+                else:
+                    usuarios[nome].pop("email", None)
+                flash(f"E-mail de '{nome}' {'salvo' if email else 'removido'}.", "ok")
         elif acao == "remover" and nome in usuarios:
             if nome == session["usuario"]:
                 flash("Não pode remover a sua própria conta.", "erro")
@@ -1033,7 +1093,7 @@ def iniciar_checkout(plano_id):
 @login_obrigatorio
 def assinatura_pagar():
     plano_id = request.form.get("plano")
-    if plano_id not in PLANOS or not INFINITEPAY_HANDLE or not session.get("assinante"):
+    if plano_id not in PLANOS or not INFINITEPAY_HANDLE or not (session.get("assinante") or session.get("expira_em")):
         abort(400)
     try:
         link = iniciar_checkout(plano_id)
@@ -1181,15 +1241,15 @@ def email_boas_vindas(email, conta):
     p = 'style="font-size:15px;line-height:1.5"'
     miolo = f"""<p {p}>Pagamento confirmado! Seu acesso{' ao plano <b>' + plano + '</b>' if plano else ''}
 está liberado até <b>{validade}</b>.</p>
-<p {p}><b>Para entrar:</b> acesse <a href="{URL_APP}">app.quizzify.com.br</a> com o e-mail
-<b>{email}</b> e a senha que você criou.</p>"""
+<p {p}><b>Para entrar:</b> acesse <a href="{URL_APP}">app.quizzify.com.br</a> com
+<b>{email}</b> e a sua senha.</p>"""
     depois = f"""<p {p}><b>📲 Quer o Quizify na tela do celular?</b> (opcional — funciona igual no navegador)<br>
 <b>Android:</b> abra o link no <b>Chrome</b>, toque em <b>⋮</b> e em <b>Instalar app</b>.<br>
 <b>iPhone:</b> abra no <b>Safari</b>, toque em <b>Compartilhar</b> (□↑) e em <b>Adicionar à Tela de Início</b>.</p>
 <p style="font-size:13px;color:#64748b">Esqueceu a senha? Na tela de entrar, toque em
 <a href="{URL_APP}/esqueci-senha" style="color:#64748b">Esqueci minha senha</a>.</p>"""
     texto = (f"Pagamento confirmado! Seu acesso{' ao plano ' + plano if plano else ''} está liberado até {validade}.\n\n"
-             f"Para entrar: acesse {URL_APP} com o e-mail {email} e a senha que você criou.\n\n"
+             f"Para entrar: acesse {URL_APP} com {email} e a sua senha.\n\n"
              "Quer o Quizify na tela do celular? (opcional)\n"
              "Android: abra o link no Chrome, toque em ⋮ e em Instalar app.\n"
              "iPhone: abra no Safari, toque em Compartilhar e em Adicionar à Tela de Início.\n\n"
@@ -1198,13 +1258,13 @@ está liberado até <b>{validade}</b>.</p>
                         miolo, "Acessar o Quizify", URL_APP + "/", texto, depois)
 
 
-def enviar_boas_vindas(email, conta):
+def enviar_boas_vindas(email, conta, nome=None):
     """Roda em segundo plano depois do pagamento; uma falha aqui não afeta o crédito."""
     if "@" not in email or not os.environ.get("BREVO_API_KEY") or not EMAIL_REMETENTE:
         return
     def tarefa():
         try:
-            enviar_email(email, *email_boas_vindas(email, conta), tag="boas-vindas")
+            enviar_email(email, *email_boas_vindas(nome or email, conta), tag="boas-vindas")
         except Exception:
             log.exception("Falha ao enviar boas-vindas para %s", email)
     threading.Thread(target=tarefa, daemon=True).start()
@@ -1241,9 +1301,14 @@ def esqueci_senha():
         flash("Muitos pedidos. Aguarde um pouco e tente novamente.", "erro")
         return render_template("esqueci_senha.html", email=email), 429
     registrar_tentativa(_pedidos_senha, ip, agora)
-    conta = carregar_usuarios().get(email) if EMAIL_VALIDO.fullmatch(email) else None
-    if conta and not expirou(conta) and os.environ.get("BREVO_API_KEY") and EMAIL_REMETENTE:
-        token = _assinador_senha().dumps({"u": email, "h": conta["senha"][-16:]})
+    nome, conta = None, None
+    if EMAIL_VALIDO.fullmatch(email):
+        usuarios = carregar_usuarios()
+        nome = email if email in usuarios else next(
+            (n for n, c in usuarios.items() if (c.get("email") or "").lower() == email), None)
+        conta = usuarios.get(nome) if nome else None
+    if conta and os.environ.get("BREVO_API_KEY") and EMAIL_REMETENTE:
+        token = _assinador_senha().dumps({"u": nome, "h": conta["senha"][-16:]})
         link = f"{URL_APP}/nova-senha/{token}"
         def tarefa():
             try:
@@ -1269,6 +1334,7 @@ def nova_senha(token):
     if request.method == "GET":
         return render_template("nova_senha.html", email=nome)
 
+
     nova = request.form.get("nova", "")
     if not senha_valida(nova):
         flash("A nova senha deve ter pelo menos 8 caracteres.", "erro")
@@ -1290,14 +1356,58 @@ def nova_senha(token):
         if atualizada is False:
             flash("Este link já foi usado. Peça um novo abaixo.", "erro")
             return redirect(url_for("esqueci_senha"))
-        session.clear()
-        session.permanent = True
-        session.update(usuario=nome, admin=bool(atualizada.get("admin")), trocar_senha=False,
-                       expira_em=atualizada.get("expira_em"))
-        atualizar_sessao_assinatura(atualizada)
+        entrar_na_sessao(nome, atualizada)
         flash("Senha alterada! Você já está dentro. 🎉", "ok")
         return redirect(url_for("index"))
     return render_template("nova_senha.html", email=nome), 400
+
+
+AVISO_TESTE_DIAS = 2
+
+
+def etapa_teste(conta, agora):
+    """Aviso de fim do teste: "teste_antes" (até 2 dias antes) ou "teste_fim" (até 3 dias depois)."""
+    expira = conta.get("expira_em") or 0
+    if not expira or conta.get("admin"):
+        return None
+    restante = expira - agora
+    if 0 < restante <= AVISO_TESTE_DIAS * DIA:
+        etapa = "teste_antes"
+    elif -JANELA_VENCIDA_DIAS * DIA < restante <= 0:
+        etapa = "teste_fim"
+    else:
+        return None
+    registro = conta.get("lembretes_teste") or {}
+    if registro.get("ref") == expira and etapa in registro.get("enviados", []):
+        return None
+    return etapa
+
+
+def email_teste(etapa, nome, conta, total_quizzes):
+    mensal, anual = PLANOS["mensal"]["centavos"], PLANOS["anual"]["centavos"]
+    reais = lambda c: f"R$ {c / 100:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    precos = (f"<b>Mensal:</b> {reais(mensal)}/mês &nbsp;·&nbsp; <b>Anual:</b> {reais(anual)}/ano "
+              f"(sai por {reais(anual / 12)}/mês)")
+    precos_txt = re.sub(r"<[^>]+>|&nbsp;", "", precos)
+    p = 'style="font-size:15px;line-height:1.5"'
+    entrar = (f'<p style="font-size:13px;color:#64748b">Para entrar, use <b>{nome}</b> e a sua senha.</p>')
+    guardados = (f" Seus <b>{total_quizzes} quiz{'zes' if total_quizzes != 1 else ''}</b> continuam guardados."
+                 if total_quizzes else " Tudo o que você criou continua guardado.")
+    if etapa == "teste_antes":
+        dias = int(max(0, conta["expira_em"] - time.time()) // DIA) + 1
+        assunto = f"Seu teste do Quizify acaba em {dias} dia{'s' if dias > 1 else ''}"
+        titulo = "⏳ Seu teste está acabando"
+        texto = (f"Seu acesso de teste termina em <b>{data_hora(conta['expira_em'])}</b>. "
+                 f"Para continuar criando quizzes e flashcards, escolha um plano.{guardados}")
+        botao = "Escolher meu plano"
+    else:
+        assunto = "Seu teste do Quizify acabou — seus quizzes estão guardados"
+        titulo = "Seu teste acabou 💾"
+        texto = f"Esperamos que tenha gostado!{guardados} Assine para voltar a criar quizzes na hora."
+        botao = "Assinar e continuar"
+    miolo = f"<p {p}>{texto}</p><p {p}>{precos}<br>Pix ou cartão, liberação imediata.</p>"
+    miolo_txt = f"{re.sub(r'<[^>]+>', '', texto)}\n\n{precos_txt}\nPix ou cartão, liberação imediata.\n\nPara entrar, use {nome} e a sua senha."
+    return montar_email(assunto, titulo, miolo, botao, f"{URL_APP}/assinatura?plano=anual", miolo_txt, entrar)
 
 
 def etapa_lembrete(conta, agora):
@@ -1332,7 +1442,10 @@ def tarefa_lembretes():
     if (teste := request.args.get("teste", "").strip()):
         exemplo = {"pago_ate": time.time() + 3 * DIA, "plano": "mensal"}
         try:
-            if request.args.get("tipo") == "boas-vindas":   # &tipo=boas-vindas: e-mail pós-pagamento
+            if request.args.get("tipo") in ("teste_antes", "teste_fim"):
+                exemplo = {"expira_em": time.time() + (2 * DIA if request.args["tipo"] == "teste_antes" else -3600)}
+                enviar_email(teste, *email_teste(request.args["tipo"], teste, exemplo, 3), tag="fim-do-teste")
+            elif request.args.get("tipo") == "boas-vindas":   # &tipo=boas-vindas: e-mail pós-pagamento
                 exemplo = {"pago_ate": time.time() + 365 * DIA, "plano": "anual"}
                 enviar_email(teste, *email_boas_vindas(teste, exemplo), tag="boas-vindas")
             else:
@@ -1347,14 +1460,25 @@ def tarefa_lembretes():
     except FalhaUsuarios:
         return jsonify(erro="Falha ao ler utilizadores"), 503
 
-    agora, enviados, falhas = time.time(), [], 0
+    agora, enviados, enviados_teste, falhas = time.time(), [], [], 0
     for nome, conta in usuarios.items():
+        destino = email_da_conta(nome, conta)
+        if not destino:
+            continue
+        if (etapa := etapa_teste(conta, agora)):
+            try:
+                enviar_email(destino, *email_teste(etapa, nome, conta, len(listar_historico(nome))), tag="fim-do-teste")
+                enviados_teste.append((nome, etapa, conta["expira_em"]))
+            except Exception:
+                log.exception("Falha ao enviar aviso de teste '%s' para %s", etapa, nome)
+                falhas += 1
+            continue
         etapa = etapa_lembrete(conta, agora)
-        if not etapa or "@" not in nome:
+        if not etapa:
             continue
         total = len(listar_historico(nome)) if etapa == "vencida" else 0
         try:
-            enviar_email(nome, *email_lembrete(etapa, conta, total))
+            enviar_email(destino, *email_lembrete(etapa, conta, total))
             enviados.append((nome, etapa, conta["pago_ate"]))
         except Exception:
             log.exception("Falha ao enviar lembrete '%s' para %s", etapa, nome)
@@ -1371,14 +1495,24 @@ def tarefa_lembretes():
             if etapa not in registro["enviados"]:
                 registro["enviados"].append(etapa)
             conta["lembretes"] = registro
+        for nome, etapa, ref in enviados_teste:
+            conta = usuarios.get(nome)
+            if not conta:
+                continue
+            registro = conta.get("lembretes_teste") or {}
+            if registro.get("ref") != ref:
+                registro = {"ref": ref, "enviados": []}
+            if etapa not in registro["enviados"]:
+                registro["enviados"].append(etapa)
+            conta["lembretes_teste"] = registro
 
-    if enviados:
+    if enviados or enviados_teste:
         try:
             alterar_usuarios(marcar)
         except Exception:
             log.exception("Lembretes enviados mas não marcados; podem repetir amanhã")
-    log.info("Lembretes: %s enviados, %s falhas", len(enviados), falhas)
-    return jsonify(enviados=len(enviados), falhas=falhas)
+    log.info("Lembretes: %s enviados, %s avisos de teste, %s falhas", len(enviados), len(enviados_teste), falhas)
+    return jsonify(enviados=len(enviados), avisos_teste=len(enviados_teste), falhas=falhas)
 
 
 @app.context_processor
@@ -1390,6 +1524,50 @@ def dados_assinatura():
     if 0 < restante <= AVISO_VENCIMENTO_DIAS * DIA:
         return {"dias_para_vencer": max(1, round(restante / DIA))}
     return {}
+
+
+# ---------- Teste grátis: aviso no topo e e-mail para os avisos ----------
+@app.context_processor
+def dados_teste():
+    expira, usuario = session.get("expira_em"), session.get("usuario")
+    if not expira or not usuario or session.get("assinante") or request.endpoint in ("login", "cadastro"):
+        return {}
+    restante = expira - time.time()
+    if restante <= 0:
+        return {}
+    if restante < DIA:
+        texto = "hoje" if datetime.fromtimestamp(expira, FUSO_BRASIL).date() == datetime.now(FUSO_BRASIL).date() else "amanhã"
+    else:
+        dias = int(restante // DIA) + 1
+        texto = f"em {dias} dias"
+    return {"teste_aviso": texto, "teste_pedir_email": not session.get("tem_email") and "@" not in usuario}
+
+
+@app.post("/meu-email")
+@login_obrigatorio
+def meu_email():
+    email = request.form.get("email", "").strip().lower()
+    if not EMAIL_VALIDO.fullmatch(email) or len(email) > 120:
+        flash("Informe um e-mail válido.", "erro")
+        return redirect(request.referrer or url_for("index"))
+    nome = session["usuario"]
+
+    def salvar(usuarios):
+        conta = usuarios.get(nome)
+        if not conta:
+            return False
+        conta["email"] = email
+        return conta
+    try:
+        alterar_usuarios(salvar)
+    except Exception:
+        log.exception("Falha ao salvar e-mail de %s", nome)
+        flash("Não foi possível salvar agora. Tente novamente.", "erro")
+        return redirect(request.referrer or url_for("index"))
+    session["tem_email"] = True
+    flash("E-mail salvo! Vamos avisar antes do teste acabar. 📬", "ok")
+    destino = request.referrer or ""
+    return redirect(destino if destino.startswith(request.host_url) else url_for("index"))
 
 
 # ---------- Instalar o app: abrir no navegador do celular já logado ----------
@@ -1428,11 +1606,7 @@ def entrar_navegador(token):
     conta = carregar_usuarios().get(nome)
     if not conta or expirou(conta):
         return redirect(url_for("login"))
-    session.clear()
-    session.permanent = True
-    session.update(usuario=nome, admin=bool(conta.get("admin")), trocar_senha=bool(conta.get("trocar_senha")),
-                   expira_em=conta.get("expira_em"))
-    atualizar_sessao_assinatura(conta)
+    entrar_na_sessao(nome, conta)
     return redirect(url_for("index", instalar=1))
 
 
