@@ -922,6 +922,25 @@ def trocar_senha():
     return render_template("trocar_senha.html", obrigatorio=session.get("trocar_senha"))
 
 
+def resumo_testes(usuarios):
+    """Testes grátis feitos pelo site: quantos usaram, quantos não usaram e quantos assinaram."""
+    agora, r = time.time(), {"total": 0, "usaram": 0, "nao_usaram": 0, "em_andamento": 0, "assinaram": 0, "nao_usou_lista": []}
+    for nome, c in usuarios.items():
+        if not c.get("teste_site"):
+            continue
+        r["total"] += 1
+        if (c.get("pago_ate") or 0) > 0:
+            r["assinaram"] += 1
+        elif c.get("expira_em") and c["expira_em"] > agora:
+            r["em_andamento"] += 1
+        if c.get("teste_usados"):
+            r["usaram"] += 1
+        else:
+            r["nao_usaram"] += 1
+            r["nao_usou_lista"].append(nome)
+    return r
+
+
 @app.route("/admin", methods=["GET", "POST"])
 @admin_obrigatorio
 def admin():
@@ -1016,7 +1035,7 @@ def admin():
 
     return render_template("admin.html", usuarios=sorted(usuarios.items()), agora=time.time(),
                            config_limite_teste=LIMITE_TESTE, metricas=ler_metricas(),
-                           divulgacao=ler_divulgacao(fresco=True))
+                           divulgacao=ler_divulgacao(fresco=True), resumo_teste=resumo_testes(usuarios))
 
 
 EMAIL_VALIDO = re.compile(r"[^@\s]+@[^@\s]+\.[a-z]{2,}")
@@ -1416,7 +1435,12 @@ def etapa_teste(conta, agora):
     return etapa
 
 
+def _assinador_mais24():
+    return URLSafeTimedSerializer(app.secret_key, salt="teste-mais-24h")
+
+
 def email_teste(etapa, nome, conta, total_quizzes):
+    """Aviso de teste em 4 versões: está acabando / acabou × usou / não usou."""
     mensal, anual = PLANOS["mensal"]["centavos"], PLANOS["anual"]["centavos"]
     reais = lambda c: f"R$ {c / 100:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     precos = (f"<b>Mensal:</b> {reais(mensal)}/mês &nbsp;·&nbsp; <b>Anual:</b> {reais(anual)}/ano "
@@ -1424,14 +1448,41 @@ def email_teste(etapa, nome, conta, total_quizzes):
     precos_txt = re.sub(r"<[^>]+>|&nbsp;", "", precos)
     p = 'style="font-size:15px;line-height:1.5"'
     entrar = (f'<p style="font-size:13px;color:#64748b">Para entrar, use <b>{nome}</b> e a sua senha.</p>')
+    usados = conta.get("teste_usados") or total_quizzes
+    cota = conta.get("teste_cota")
+    planos = f"{URL_APP}/assinatura?plano=anual"
+    passos = (f'<ol {p}><li>Tire uma foto do caderno ou do livro (ou use um PDF).</li>'
+              '<li>Toque em <b>Escolher arquivos ou fotos</b> e depois em <b>Gerar com IA</b>.</li>'
+              '<li>Em menos de 1 minuto o quiz fica pronto, com correção e link para mandar aos alunos.</li></ol>')
+    passos_txt = ("1. Tire uma foto do caderno ou do livro (ou use um PDF).\n2. Toque em Escolher arquivos ou fotos e em Gerar com IA.\n"
+                  "3. Em menos de 1 minuto o quiz fica pronto.")
+    if etapa == "teste_antes" and not usados:
+        restam = f" Você ainda tem <b>{cota} quizzes grátis</b>." if cota else ""
+        assunto = "Você ainda não criou seu primeiro quiz no Quizzify"
+        titulo = "📸 Seu primeiro quiz leva 1 minuto"
+        texto = f"Seu teste termina em <b>{data_hora(conta['expira_em'])}</b>.{restam} Veja como é rápido:"
+        miolo = f"<p {p}>{texto}</p>{passos}"
+        miolo_txt = f"{re.sub(r'<[^>]+>', '', texto)}\n\n{passos_txt}"
+        return montar_email(assunto, titulo, miolo, "Criar meu primeiro quiz", URL_APP + "/", miolo_txt, entrar)
+    if etapa != "teste_antes" and not usados and conta.get("teste_site") and not conta.get("teste_estendido"):
+        token = _assinador_mais24().dumps({"u": nome})
+        assunto = "Seu teste acabou antes de você experimentar. Quer mais 24 horas?"
+        titulo = "⏰ Ganhe mais 24 horas grátis"
+        texto = ("Vimos que você não chegou a criar nenhum quiz. Sem problema: toque no botão e liberamos "
+                 "<b>mais 24 horas</b> para você testar com calma.")
+        miolo = f"<p {p}>{texto}</p>{passos}"
+        miolo_txt = f"{re.sub(r'<[^>]+>', '', texto)}\n\n{passos_txt}"
+        return montar_email(assunto, titulo, miolo, "Quero mais 24 horas", f"{URL_APP}/teste/mais-24h/{token}", miolo_txt, entrar)
+
     guardados = (f" Seus <b>{total_quizzes} quiz{'zes' if total_quizzes != 1 else ''}</b> continuam guardados."
                  if total_quizzes else " Tudo o que você criou continua guardado.")
     if etapa == "teste_antes":
         dias = int(max(0, conta["expira_em"] - time.time()) // DIA) + 1
         assunto = f"Seu teste do Quizzify acaba em {dias} dia{'s' if dias > 1 else ''}"
         titulo = "⏳ Seu teste está acabando"
-        texto = (f"Seu acesso de teste termina em <b>{data_hora(conta['expira_em'])}</b>. "
-                 f"Para continuar criando quizzes e flashcards, escolha um plano.{guardados}")
+        sobra = (f" Você já criou {usados} e ainda tem <b>{max(0, cota - usados)}</b> grátis." if cota and usados else "")
+        texto = (f"Seu acesso de teste termina em <b>{data_hora(conta['expira_em'])}</b>.{sobra} "
+                 f"Para continuar criando quizzes e flashcards depois disso, escolha um plano.{guardados}")
         botao = "Escolher meu plano"
     else:
         assunto = "Seu teste do Quizzify acabou — seus quizzes estão guardados"
@@ -1440,7 +1491,39 @@ def email_teste(etapa, nome, conta, total_quizzes):
         botao = "Assinar e continuar"
     miolo = f"<p {p}>{texto}</p><p {p}>{precos}<br>Pix ou cartão, liberação imediata.</p>"
     miolo_txt = f"{re.sub(r'<[^>]+>', '', texto)}\n\n{precos_txt}\nPix ou cartão, liberação imediata.\n\nPara entrar, use {nome} e a sua senha."
-    return montar_email(assunto, titulo, miolo, botao, f"{URL_APP}/assinatura?plano=anual", miolo_txt, entrar)
+    return montar_email(assunto, titulo, miolo, botao, planos, miolo_txt, entrar)
+
+
+@app.get("/teste/mais-24h/<token>")
+def teste_mais_24h(token):
+    """Link do e-mail para quem não usou o teste: mais 24 horas, uma única vez."""
+    try:
+        nome = _assinador_mais24().loads(token, max_age=14 * DIA).get("u", "")
+    except BadSignature:
+        flash("Este link expirou. Escolha um plano para continuar.", "erro")
+        return redirect(url_for("login"))
+
+    def estender(usuarios):
+        c = usuarios.get(nome)
+        if not c or not c.get("teste_site") or c.get("teste_estendido") or c.get("teste_usados") or (c.get("pago_ate") or 0) > time.time():
+            return False
+        c.pop("assinante", None); c.pop("teste_acabou_em", None)
+        c["expira_em"] = max(time.time(), c.get("expira_em") or 0) + DIA
+        c["teste_estendido"] = True
+        c.pop("lembretes_teste", None)
+        return c
+    try:
+        conta = alterar_usuarios(estender)
+    except Exception:
+        log.exception("Falha ao estender teste de %s", nome)
+        flash("Não foi possível liberar agora. Tente de novo em instantes.", "erro")
+        return redirect(url_for("login"))
+    if not conta:
+        flash("Este bônus já foi usado ou não vale para esta conta. Escolha um plano para continuar.", "erro")
+        return redirect(url_for("login"))
+    entrar_na_sessao(nome, conta)
+    flash("Pronto! Você ganhou mais 24 horas de teste grátis. Crie seu primeiro quiz agora. 🎉", "ok")
+    return redirect(url_for("index"))
 
 
 def etapa_lembrete(conta, agora):
@@ -1475,9 +1558,12 @@ def tarefa_lembretes():
     if (teste := request.args.get("teste", "").strip()):
         exemplo = {"pago_ate": time.time() + 3 * DIA, "plano": "mensal"}
         try:
-            if request.args.get("tipo") in ("teste_antes", "teste_fim"):
-                exemplo = {"expira_em": time.time() + (2 * DIA if request.args["tipo"] == "teste_antes" else -3600)}
-                enviar_email(teste, *email_teste(request.args["tipo"], teste, exemplo, 3), tag="fim-do-teste")
+            tipo = request.args.get("tipo", "")
+            if tipo.startswith(("teste_antes", "teste_fim")):     # &tipo=teste_antes | teste_fim (+ _sem_uso)
+                sem_uso = tipo.endswith("_sem_uso"); etapa = tipo.replace("_sem_uso", "")
+                exemplo = {"expira_em": time.time() + (20 * 3600 if etapa == "teste_antes" else -3600), "teste_site": True,
+                           "teste_cota": 3, "teste_usados": 0 if sem_uso else 2, "teste_horas": 48}
+                enviar_email(teste, *email_teste(etapa, teste, exemplo, 0 if sem_uso else 2), tag="fim-do-teste")
             elif request.args.get("tipo") == "boas-vindas":   # &tipo=boas-vindas: e-mail pós-pagamento
                 exemplo = {"pago_ate": time.time() + 365 * DIA, "plano": "anual"}
                 enviar_email(teste, *email_boas_vindas(teste, exemplo), tag="boas-vindas")

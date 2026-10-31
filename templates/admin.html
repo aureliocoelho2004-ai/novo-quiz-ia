@@ -70,6 +70,24 @@
         {% endif %}
     </div>
 
+    {% if resumo_teste and resumo_teste.total %}
+    {% set r = resumo_teste %}
+    <div class="space-y-2">
+        <h3 class="font-semibold">🎁 Testes grátis pelo site</h3>
+        <div class="grid grid-cols-2 gap-2 text-center text-sm">
+            <div class="bg-slate-900 rounded-xl p-3 border border-slate-700"><b class="text-2xl block">{{ r.total }}</b>começaram</div>
+            <div class="bg-slate-900 rounded-xl p-3 border border-slate-700"><b class="text-2xl block text-lima">{{ r.usaram }}</b>geraram quiz{{ pct(r.usaram, r.total) }}</div>
+            <div class="bg-slate-900 rounded-xl p-3 border border-slate-700"><b class="text-2xl block text-amber-300">{{ r.nao_usaram }}</b>não usaram{{ pct(r.nao_usaram, r.total) }}</div>
+            <div class="bg-slate-900 rounded-xl p-3 border border-slate-700"><b class="text-2xl block text-green-400">{{ r.assinaram }}</b>assinaram{{ pct(r.assinaram, r.total) }}</div>
+        </div>
+        <p class="text-xs text-slate-400">{{ r.em_andamento }} teste(s) ainda em andamento. Quem não usou recebe um e-mail com o passo a passo e, no fim, um link para ganhar mais 24 horas (uma vez).</p>
+        {% if r.nao_usou_lista %}
+        <details class="text-xs text-slate-400"><summary class="cursor-pointer">Ver quem não usou ({{ r.nao_usou_lista | length }})</summary>
+            <p class="mt-1 break-all">{{ r.nao_usou_lista | join(', ') }}</p></details>
+        {% endif %}
+    </div>
+    {% endif %}
+
     {% if divulgacao %}
     <form method="post" class="space-y-3 bg-slate-900 p-4 rounded-xl border border-slate-700">
         <input type="hidden" name="acao" value="divulgacao">
