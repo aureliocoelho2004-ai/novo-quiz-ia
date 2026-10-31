@@ -69,7 +69,7 @@
         botao.textContent = 'Como instalar';
         mostrar();
         if (veioParaInstalar) {       // acabou de chegar para instalar: destaca e abre o passo a passo
-            faixa.classList.add('ring-2', 'ring-red-500');
+            faixa.classList.add('ring-2', 'ring-lima');
             setTimeout(() => { if (!pedido && ajudas[ajuda]) ajudas[ajuda].classList.remove('hidden'); }, 1500);
         }
     }

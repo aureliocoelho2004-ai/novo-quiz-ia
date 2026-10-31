@@ -5,9 +5,32 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block titulo %}Quizify - Gerador de Quizzes e Flashcards com IA{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+    {#- Marca: roxo #5920AB, verde-limão #C1FC38, tinta #24133E. A escala "slate"
+        vira tons de roxo, então todas as telas mudam juntas. #}
+    <script>
+        tailwind.config = { theme: { extend: {
+            colors: {
+                slate: { 50: '#F6F2FD', 100: '#F1EBFB', 200: '#E2D7F5', 300: '#D2C4EC', 400: '#B9A8D9', 500: '#9C88C4',
+                         600: '#5B4388', 700: '#3D2766', 800: '#24133E', 900: '#1A0E2E', 950: '#10071F' },
+                lima: { DEFAULT: '#C1FC38', claro: '#D4FF6B' },
+                roxo: '#5920AB',
+                tinta: '#24133E',
+            },
+            fontFamily: { sans: ['Jakarta', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'] },
+        } } };
+    </script>
+    <link rel="preload" href="{{ url_for('static', filename='fonts/plus-jakarta-sans-400.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="{{ url_for('static', filename='fonts/plus-jakarta-sans-800.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <style>
+        @font-face { font-family: Jakarta; font-weight: 400 500; font-display: swap;
+                     src: url("{{ url_for('static', filename='fonts/plus-jakarta-sans-400.woff2') }}") format("woff2"); }
+        @font-face { font-family: Jakarta; font-weight: 600 900; font-display: swap;
+                     src: url("{{ url_for('static', filename='fonts/plus-jakarta-sans-800.woff2') }}") format("woff2"); }
+        body { background: radial-gradient(1200px 600px at 50% -200px, #3a1d6e 0%, #160B29 60%) fixed, #160B29; }
+    </style>
     {#- App instalável: ícone na tela inicial do celular #}
     <link rel="manifest" href="{{ url_for('manifesto') }}">
-    <meta name="theme-color" content="#0f172a">
+    <meta name="theme-color" content="#160B29">
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/favicon-32.png') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -19,7 +42,7 @@
 
     <main class="w-full max-w-md bg-slate-800 rounded-2xl shadow-xl p-6 border border-slate-700">
         <header class="text-center mb-6">
-            <h1 class="text-3xl font-extrabold text-red-500 tracking-wide"><a href="{{ url_for('index') }}">🎲 Quizify</a></h1>
+            <h1 class="flex justify-center"><a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='img/quizify-nome.svg') }}" alt="quizify." width="158" height="47" class="h-11 w-auto"></a></h1>
             <p class="text-sm text-slate-400 mt-1">Transforme documentos em quizzes e flashcards interativos com IA</p>
             {% if session.usuario %}
             <nav class="flex justify-center items-center gap-3 mt-3 text-xs text-slate-400">
@@ -42,7 +65,7 @@
                 <img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" class="w-10 h-10 rounded-xl">
                 <p class="flex-1 text-slate-200 leading-snug"><b>Instale o Quizify</b><br>
                     <span class="text-xs text-slate-400">Ícone na tela inicial, abre mais rápido.</span></p>
-                <button id="instalar-botao" type="button" class="bg-red-500 hover:bg-red-600 font-bold px-3 py-2 rounded-lg">Instalar</button>
+                <button id="instalar-botao" type="button" class="bg-lima hover:bg-lima-claro text-tinta font-bold px-3 py-2 rounded-lg">Instalar</button>
                 <button id="instalar-fechar" type="button" class="text-slate-500 hover:text-white text-lg px-1" aria-label="Agora não">✕</button>
             </div>
             <ol id="instalar-ios" class="hidden mt-3 space-y-1 text-slate-300 list-decimal list-inside">
@@ -59,7 +82,7 @@
                 <p>Para instalar, o Quizify precisa abrir no <b id="instalar-nome-navegador">navegador</b> do celular.
                     Toque no botão: ele abre <b>já com a sua conta</b>, é só tocar em <b>Instalar</b> lá.</p>
                 <a id="instalar-abrir" href="{{ instalar_link }}" target="_blank" rel="noopener"
-                   class="block text-center bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl">Abrir no navegador</a>
+                   class="block text-center bg-lima hover:bg-lima-claro text-tinta font-bold py-3 rounded-xl">Abrir no navegador</a>
                 <p class="text-xs text-slate-400">Não abriu? Toque nos <b>três pontinhos</b> no canto da tela e em
                     <b>Abrir no navegador</b>.</p>
             </div>

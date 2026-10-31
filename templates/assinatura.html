@@ -7,7 +7,7 @@
 
     {% if not conta.assinante and not conta.expira_em %}
     <p class="text-sm text-center text-slate-300">A sua conta tem acesso liberado pelo administrador.</p>
-    <a href="{{ url_for('index') }}" class="block text-center bg-red-500 hover:bg-red-600 font-bold py-3 rounded-xl">Ir para o Quizify</a>
+    <a href="{{ url_for('index') }}" class="block text-center bg-lima hover:bg-lima-claro text-tinta font-bold py-3 rounded-xl">Ir para o Quizify</a>
     {% else %}
         {% if conta.expira_em and not conta.assinante %}
         <div class="rounded-xl p-4 bg-amber-900/50 text-center">
@@ -19,7 +19,7 @@
             <p class="font-bold text-green-300">✅ Assinatura ativa</p>
             <p class="text-sm text-slate-200 mt-1">Acesso liberado até <b>{{ conta.pago_ate | data_hora }}</b>.</p>
         </div>
-        <a href="{{ url_for('index') }}" class="block text-center bg-red-500 hover:bg-red-600 font-bold py-3 rounded-xl">Criar quizzes 🚀</a>
+        <a href="{{ url_for('index') }}" class="block text-center bg-lima hover:bg-lima-claro text-tinta font-bold py-3 rounded-xl">Criar quizzes 🚀</a>
         <p class="text-sm text-slate-400 text-center">Pode renovar antes do vencimento: os dias novos somam-se aos que já tem.</p>
         {% elif conta.pago_ate %}
         <div class="rounded-xl p-4 bg-red-900/50 text-center">
@@ -39,19 +39,19 @@
         <div class="grid gap-3">
             {% for id, plano in planos.items() %}
             <form method="post" action="{{ url_for('assinatura_pagar') }}"
-                  class="rounded-xl border {{ 'border-red-500 border-2' if id == destaque else 'border-slate-700' }} bg-slate-900 p-4 space-y-2">
+                  class="rounded-xl border {{ 'border-lima border-2' if id == destaque else 'border-slate-700' }} bg-slate-900 p-4 space-y-2">
                 <input type="hidden" name="plano" value="{{ id }}">
                 <div class="flex justify-between items-baseline">
                     <h3 class="font-bold text-lg">{{ plano.nome }}</h3>
                     {% if id == 'anual' %}
                     {% set economia = planos.mensal.centavos * 12 - plano.centavos %}
-                    {% if economia > 0 %}<span class="text-xs font-semibold bg-red-500 rounded-full px-2 py-0.5">economize R$ {{ '%.2f' | format(economia / 100) | replace('.', ',') }}</span>{% endif %}
+                    {% if economia > 0 %}<span class="text-xs font-semibold bg-lima text-tinta rounded-full px-2 py-0.5">economize R$ {{ '%.2f' | format(economia / 100) | replace('.', ',') }}</span>{% endif %}
                     {% endif %}
                 </div>
                 <p class="text-2xl font-extrabold">R$ {{ '%.2f' | format(plano.centavos / 100) | replace('.', ',') }}
                     <span class="text-sm font-normal text-slate-400">/ {{ 'mês' if id == 'mensal' else 'ano' }}</span></p>
                 <p class="text-xs text-slate-400">{{ plano.dias }} dias de acesso · Pix ou cartão{{ ' (até 12x)' if id == 'anual' }}</p>
-                <button class="w-full bg-red-500 hover:bg-red-600 font-bold py-2.5 rounded-xl transition">
+                <button class="w-full bg-lima hover:bg-lima-claro text-tinta font-bold py-2.5 rounded-xl transition">
                     {{ 'Renovar' if conta.pago_ate else 'Assinar' }} {{ plano.nome | lower }}
                 </button>
             </form>

@@ -6,16 +6,16 @@
     <div>
         <label for="usuario" class="block text-sm font-medium mb-2 text-slate-300">E-mail ou utilizador</label>
         <input id="usuario" name="usuario" value="{{ usuario or '' }}" required autofocus autocomplete="username" autocapitalize="none"
-               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
     </div>
     <div>
         <label for="senha" class="block text-sm font-medium mb-2 text-slate-300">Senha</label>
         <input id="senha" name="senha" type="password" required autocomplete="current-password"
-               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
     </div>
-    <button class="w-full bg-red-500 hover:bg-red-600 font-bold py-3 rounded-xl transition shadow-lg shadow-red-500/30">Entrar</button>
+    <button class="w-full bg-lima hover:bg-lima-claro text-tinta font-bold py-3 rounded-xl transition shadow-lg shadow-lima/20">Entrar</button>
     <p class="text-center"><a href="{{ url_for('esqueci_senha') }}" class="text-sm text-slate-400 underline hover:text-white">Esqueci minha senha</a></p>
 </form>
 <p class="text-sm text-center text-slate-400 mt-6">Ainda não tem conta?
-    <a href="{{ url_for('cadastro') }}" class="text-red-400 font-semibold underline">Crie a sua e assine</a></p>
+    <a href="{{ url_for('cadastro') }}" class="text-lima font-semibold underline">Crie a sua e assine</a></p>
 {% endblock %}

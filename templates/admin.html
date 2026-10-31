@@ -9,23 +9,23 @@
         <input type="hidden" name="acao" value="criar">
         <input name="usuario" required placeholder="e-mail da pessoa (ex.: ana@gmail.com)" autocapitalize="none" maxlength="120"
                title="Use o e-mail: assim ela recebe os avisos de fim do teste"
-               class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+               class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
         <input name="senha" type="password" required minlength="8" placeholder="senha provisória (mín. 8)" autocomplete="new-password"
-               class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+               class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
         <label for="duracao" class="block text-sm text-slate-300">Tipo de acesso</label>
         <select id="duracao" name="duracao"
                 onchange="document.getElementById('linha-admin').classList.toggle('hidden', this.value !== '')"
-                class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+                class="w-full bg-slate-800 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
             <option value="">Permanente</option>
             <option value="24h">Teste — 24 horas</option>
             <option value="3d">Teste — 3 dias</option>
             <option value="7d">Teste — 7 dias</option>
         </select>
         <label id="linha-admin" class="flex items-center gap-2 text-sm text-slate-300">
-            <input type="checkbox" name="admin" value="1" class="accent-red-500"> Administrador
+            <input type="checkbox" name="admin" value="1" class="accent-lima"> Administrador
         </label>
         <p class="text-xs text-slate-400">Use o <b>e-mail</b> da pessoa como nome: ela recebe aviso 2 dias antes do fim do teste e no dia em que acaba. Quando o teste acaba, ela entra direto na página dos planos e mantém os quizzes.<br>Contas de teste entram direto com a senha que definir aqui, expiram sozinhas e têm limite de {{ config_limite_teste }} conteúdos por dia.</p>
-        <button class="w-full bg-red-500 hover:bg-red-600 font-bold py-2.5 rounded-xl transition">Adicionar utilizador</button>
+        <button class="w-full bg-lima hover:bg-lima-claro text-tinta font-bold py-2.5 rounded-xl transition">Adicionar utilizador</button>
     </form>
 
     {% macro reais(c) %}R$ {{ '{:,.2f}'.format(c / 100) | replace(',', 'X') | replace('.', ',') | replace('X', '.') }}{% endmacro %}

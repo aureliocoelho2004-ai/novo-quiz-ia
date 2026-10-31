@@ -1199,10 +1199,10 @@ def email_lembrete(etapa, conta, total_quizzes):
 <title>{assunto}</title></head>
 <body style="margin:0;padding:0;background:#ffffff">
 <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;color:#1e293b">
-<h1 style="color:#ef4444;font-size:24px;margin:0 0 16px">🎲 Quizify</h1>
+<p style="font-family:Arial,sans-serif;font-size:30px;font-weight:800;letter-spacing:-1px;color:#24133E;margin:0 0 16px">quizify<span style="color:#5920AB">.</span></p>
 <h2 style="font-size:18px;margin:0 0 12px">{titulo}</h2>
 <p style="font-size:15px;line-height:1.5">{texto}</p>
-<p style="text-align:center;margin:28px 0"><a href="{link}" style="background:#ef4444;color:#fff;text-decoration:none;
+<p style="text-align:center;margin:28px 0"><a href="{link}" style="background:#5920AB;color:#fff;text-decoration:none;
 font-weight:bold;padding:14px 28px;border-radius:12px;display:inline-block">Renovar assinatura</a></p>
 <p style="font-size:13px;color:#64748b">Pagamento por Pix ou cartão, com liberação imediata.<br>
 Se já renovou, pode ignorar este e-mail.<br>
@@ -1223,10 +1223,10 @@ def montar_email(assunto, titulo, miolo_html, botao, link, miolo_texto, depois_h
 <title>{assunto}</title></head>
 <body style="margin:0;padding:0;background:#ffffff">
 <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;color:#1e293b">
-<h1 style="color:#ef4444;font-size:24px;margin:0 0 16px">🎲 Quizify</h1>
+<p style="font-family:Arial,sans-serif;font-size:30px;font-weight:800;letter-spacing:-1px;color:#24133E;margin:0 0 16px">quizify<span style="color:#5920AB">.</span></p>
 <h2 style="font-size:18px;margin:0 0 12px">{titulo}</h2>
 {miolo_html}
-<p style="text-align:center;margin:28px 0"><a href="{link}" style="background:#ef4444;color:#fff;text-decoration:none;
+<p style="text-align:center;margin:28px 0"><a href="{link}" style="background:#5920AB;color:#fff;text-decoration:none;
 font-weight:bold;padding:14px 28px;border-radius:12px;display:inline-block">{botao}</a></p>
 {depois_html}
 <p style="font-size:13px;color:#64748b">Dúvidas ou dificuldade para acessar? Responda este e-mail ou escreva para
@@ -1778,7 +1778,7 @@ def assinar_plano(plano_id):
 # App instalável (PWA): ícone na tela inicial do celular, abre em tela cheia.
 # O manifesto e o service worker ficam na raiz para valerem para o site todo.
 # --------------------------------------------------------------------------- #
-COR_APP = "#0f172a"
+COR_APP = "#160B29"   # fundo do app (roxo-escuro da marca)
 
 
 @app.get("/manifest.webmanifest")

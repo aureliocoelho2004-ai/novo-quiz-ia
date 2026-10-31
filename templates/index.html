@@ -6,24 +6,24 @@
     <div class="grid grid-cols-2 gap-2" role="radiogroup">
         <label class="cursor-pointer">
             <input type="radio" name="tipo" value="quiz" class="peer sr-only" checked>
-            <span class="block text-center py-2 rounded-xl border border-slate-700 peer-checked:bg-red-500 peer-checked:border-red-500 font-semibold">📝 Quiz</span>
+            <span class="block text-center py-2 rounded-xl border border-slate-700 peer-checked:bg-lima peer-checked:border-lima peer-checked:text-tinta font-semibold">📝 Quiz</span>
         </label>
         <label class="cursor-pointer">
             <input type="radio" name="tipo" value="flashcards" class="peer sr-only">
-            <span class="block text-center py-2 rounded-xl border border-slate-700 peer-checked:bg-red-500 peer-checked:border-red-500 font-semibold">🃏 Flashcards</span>
+            <span class="block text-center py-2 rounded-xl border border-slate-700 peer-checked:bg-lima peer-checked:border-lima peer-checked:text-tinta font-semibold">🃏 Flashcards</span>
         </label>
     </div>
 
     <div>
         <label for="titulo" class="block text-sm font-medium mb-2 text-slate-300">Título</label>
         <input id="titulo" name="titulo" type="text" maxlength="120" value="Desafio de Conhecimento"
-               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
     </div>
 
     <div>
         <label for="professor" class="block text-sm font-medium mb-2 text-slate-300">Professor(a) / Responsável (opcional)</label>
         <input id="professor" name="professor" type="text" maxlength="80"
-               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
     </div>
 
     <div>
@@ -31,18 +31,18 @@
             Arquivos ou fotos (PDF, Word, PowerPoint, imagens — máx. {{ max_arquivos }})
         </label>
         <input type="file" id="arquivos" multiple accept=".pdf,.docx,.pptx,image/*"
-               class="w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-red-500 file:text-white hover:file:bg-red-600 cursor-pointer">
+               class="w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-lima file:text-tinta hover:file:bg-lima-claro cursor-pointer">
         <p id="contador-arquivos" class="text-xs text-slate-400 mt-2">Nenhum arquivo selecionado (0/{{ max_arquivos }})</p>
     </div>
 
     <div>
         <label for="quantidade" class="block text-sm font-medium mb-2 text-slate-300">Quantidade ({{ min_itens }} a {{ max_itens }})</label>
         <input id="quantidade" name="quantidade" type="number" min="{{ min_itens }}" max="{{ max_itens }}" value="10" required
-               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
     </div>
 
     <button id="btn-gerar" type="submit"
-            class="w-full bg-red-500 hover:bg-red-600 disabled:opacity-60 disabled:cursor-wait font-bold py-3 rounded-xl transition duration-200 shadow-lg shadow-red-500/30">
+            class="w-full bg-lima hover:bg-lima-claro text-tinta disabled:opacity-60 disabled:cursor-wait font-bold py-3 rounded-xl transition duration-200 shadow-lg shadow-lima/20">
         Gerar com IA 🚀
     </button>
     <p id="status" class="text-sm text-center min-h-[1.25rem]" aria-live="polite"></p>
@@ -77,7 +77,7 @@
 <section id="recentes" class="mt-8 space-y-3 {{ '' if recentes else 'hidden' }}">
     <div class="flex justify-between items-baseline">
         <h2 class="font-bold">📚 Seus últimos quizzes</h2>
-        <a href="{{ url_for('meus_quizzes') }}" class="text-xs text-red-400 underline">Ver todos</a>
+        <a href="{{ url_for('meus_quizzes') }}" class="text-xs text-lima underline">Ver todos</a>
     </div>
     <ul id="lista-recentes" class="space-y-3">
         {% for item in recentes %}{% include "_item_quiz.html" %}{% endfor %}

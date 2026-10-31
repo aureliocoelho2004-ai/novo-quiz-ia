@@ -6,7 +6,7 @@
     {% if plano_id %}
     {% set plano = planos[plano_id] %}
     <input type="hidden" name="plano" value="{{ plano_id }}">
-    <div class="rounded-xl border border-red-500 bg-slate-900 p-3 text-center">
+    <div class="rounded-xl border border-lima bg-slate-900 p-3 text-center">
         <p class="text-sm text-slate-300">Plano escolhido: <b>{{ plano.nome }}</b> —
             R$ {{ '%.2f' | format(plano.centavos / 100) | replace('.', ',') }}{{ ' / mês' if plano_id == 'mensal' else ' / ano' }}</p>
         <p class="text-xs text-slate-400 mt-1">Depois de criar a conta, segue direto para o pagamento (Pix ou cartão).
@@ -18,17 +18,17 @@
     <div>
         <label for="email" class="block text-sm font-medium mb-2 text-slate-300">E-mail</label>
         <input id="email" name="email" type="email" value="{{ email or '' }}" required autofocus autocomplete="email" autocapitalize="none" maxlength="120"
-               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
     </div>
     {% for campo, rotulo in [("senha", "Senha (mín. 8 caracteres)"), ("confirmar", "Confirmar senha")] %}
     <div>
         <label for="{{ campo }}" class="block text-sm font-medium mb-2 text-slate-300">{{ rotulo }}</label>
         <input id="{{ campo }}" name="{{ campo }}" type="password" required minlength="8" autocomplete="new-password"
-               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-red-500">
+               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
     </div>
     {% endfor %}
-    <button class="w-full bg-red-500 hover:bg-red-600 font-bold py-3 rounded-xl transition shadow-lg shadow-red-500/30">Criar conta</button>
+    <button class="w-full bg-lima hover:bg-lima-claro text-tinta font-bold py-3 rounded-xl transition shadow-lg shadow-lima/20">Criar conta</button>
 </form>
 <p class="text-sm text-center text-slate-400 mt-6">Já tem conta?
-    <a href="{{ url_for('login', proximo=url_for('assinatura', plano=plano_id)) if plano_id else url_for('login') }}" class="text-red-400 font-semibold underline">Entrar</a></p>
+    <a href="{{ url_for('login', proximo=url_for('assinatura', plano=plano_id)) if plano_id else url_for('login') }}" class="text-lima font-semibold underline">Entrar</a></p>
 {% endblock %}
