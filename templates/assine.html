@@ -6,13 +6,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<title>Quizify: seu material vira quiz em segundos</title>
+<title>Quizzify: seu material vira quiz em segundos</title>
 <link rel="canonical" href="{{ url_canonica }}">
 <meta property="og:url" content="{{ url_canonica }}">
 <meta property="og:type" content="website">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="description" content="Envie PDF, Word, PowerPoint ou foto do caderno e a IA cria quizzes e flashcards prontos. Plano anual por R$ {{ reais(anual.centavos) }} ou mensal por R$ {{ reais(mensal.centavos) }}.">
-<meta property="og:title" content="Quizify: seu material vira quiz em segundos">
+<meta property="og:title" content="Quizzify: seu material vira quiz em segundos">
 <meta property="og:description" content="PDF, Word, PowerPoint ou foto do caderno viram quizzes e flashcards com IA.">
 <meta property="og:image" content="{{ url_for('static', filename='icons/icon-512.png', _external=True) }}">
 <meta name="theme-color" content="#000000">
@@ -97,7 +97,7 @@
     }
     .nota { font-size: 13px; color: #6f6880; }
 
-    /* ---------- a imagem: o quiz do Quizify num celular ---------- */
+    /* ---------- a imagem: o quiz do Quizzify num celular ---------- */
     .vitrine { align-self: center; justify-self: center; position: relative; height: min(78vh, 640px); aspect-ratio: 9 / 18.5; container-type: size; }
     .vitrine::before {                           /* brilho roxo atrás do celular */
         content: ""; position: absolute; inset: -18% -40%;
@@ -166,11 +166,11 @@
 </head>
 <body>
 <div class="pagina">
-    <div class="marca" aria-label="Quizify"><span class="dado" aria-hidden="true">🎲</span> quizify<span>.</span></div>
+    <div class="marca" aria-label="Quizzify"><span class="dado" aria-hidden="true">🎲</span> quizzify<span>.</span></div>
 
     <figure class="vitrine">
         <div class="celular" aria-hidden="true"><div class="tela">
-            <iframe id="video-quiz" title="Quiz do Quizify em funcionamento" tabindex="-1"></iframe>
+            <iframe id="video-quiz" title="Quiz do Quizzify em funcionamento" tabindex="-1"></iframe>
         </div></div>
         <button type="button" class="testar" id="abrir-teste" aria-haspopup="dialog">▶ Teste agora</button>
     </figure>
@@ -198,10 +198,10 @@
     </main>
 </div>
 
-<div class="teste" id="teste" hidden role="dialog" aria-modal="true" aria-label="Mini-quiz: teste o Quizify">
+<div class="teste" id="teste" hidden role="dialog" aria-modal="true" aria-label="Mini-quiz: teste o Quizzify">
     <div class="teste-caixa">
         <button type="button" class="teste-fechar" id="fechar-teste" aria-label="Fechar o teste">✕</button>
-        <iframe id="teste-quiz" title="Mini-quiz do Quizify"></iframe>
+        <iframe id="teste-quiz" title="Mini-quiz do Quizzify"></iframe>
     </div>
 </div>
 <script>

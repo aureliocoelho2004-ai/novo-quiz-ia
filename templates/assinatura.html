@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block titulo %}Assinatura - Quizify{% endblock %}
+{% block titulo %}Assinatura - Quizzify{% endblock %}
 {% block conteudo %}
 {% set ativa = conta.pago_ate and conta.pago_ate > agora %}
 <section class="space-y-5">
@@ -7,7 +7,7 @@
 
     {% if not conta.assinante and not conta.expira_em %}
     <p class="text-sm text-center text-slate-300">A sua conta tem acesso liberado pelo administrador.</p>
-    <a href="{{ url_for('index') }}" class="block text-center bg-lima hover:bg-lima-claro text-tinta font-bold py-3 rounded-xl">Ir para o Quizify</a>
+    <a href="{{ url_for('index') }}" class="block text-center bg-lima hover:bg-lima-claro text-tinta font-bold py-3 rounded-xl">Ir para o Quizzify</a>
     {% else %}
         {% if conta.expira_em and not conta.assinante %}
         <div class="rounded-xl p-4 bg-amber-900/50 text-center">

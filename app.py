@@ -1,4 +1,4 @@
-"""Quizify - transforma PDFs, Word, PowerPoint e fotos em quizzes/flashcards com IA.
+"""Quizzify - transforma PDFs, Word, PowerPoint e fotos em quizzes/flashcards com IA.
 
 Toda a lógica fica aqui; o HTML vive em templates/ e o JS/CSS da página em static/.
 """
@@ -555,7 +555,7 @@ def normalizar_flash(itens, n):
 # --------------------------------------------------------------------------- #
 def nome_seguro(texto):
     texto = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
-    return re.sub(r"[^a-zA-Z0-9]+", "-", texto).strip("-").lower()[:40] or "quizify"
+    return re.sub(r"[^a-zA-Z0-9]+", "-", texto).strip("-").lower()[:40] or "quizzify"
 
 
 def publicar_firebase(conteudo_html, prefixo):
@@ -669,7 +669,7 @@ def criar_checkout(pedido_id, plano, email):
         "order_nsu": pedido_id,
         "redirect_url": url_publica("assinatura_retorno"),
         "webhook_url": url_webhook("webhook_infinitepay", token=token_webhook()),
-        "items": [{"quantity": 1, "price": plano["centavos"], "description": f"Quizify - Plano {plano['nome']}"}],
+        "items": [{"quantity": 1, "price": plano["centavos"], "description": f"Quizzify - Plano {plano['nome']}"}],
         "customer": {"email": email} if "@" in email else {},
     })
     link = next((dados.get(c) for c in ("url", "link", "checkout_url", "payment_url") if dados.get(c)), None)
@@ -1168,7 +1168,7 @@ def webhook_infinitepay():
 # --------------------------------------------------------------------------- #
 BREVO_API = "https://api.brevo.com/v3/smtp/email"
 EMAIL_REMETENTE = os.environ.get("EMAIL_REMETENTE", "").strip()
-EMAIL_REMETENTE_NOME = os.environ.get("EMAIL_REMETENTE_NOME", "Quizify").strip()
+EMAIL_REMETENTE_NOME = os.environ.get("EMAIL_REMETENTE_NOME", "Quizzify").strip()
 JANELA_VENCIDA_DIAS = 3
 
 
@@ -1183,7 +1183,7 @@ def enviar_email(para, assunto, html_corpo, texto_corpo, tag="lembrete-renovacao
         "api-key": obter_segredo("BREVO_API_KEY"), "accept": "application/json",
         "content-type": "application/json"}, json={
         "sender": {"name": EMAIL_REMETENTE_NOME, "email": EMAIL_REMETENTE},
-        "replyTo": {"email": EMAIL_SUPORTE, "name": "Suporte Quizify"},
+        "replyTo": {"email": EMAIL_SUPORTE, "name": "Suporte Quizzify"},
         "to": [{"email": para}], "subject": assunto, "htmlContent": html_corpo,
         "textContent": texto_corpo, "tags": [tag]})
     if resposta.status_code not in (200, 201, 202):
@@ -1197,13 +1197,13 @@ def email_lembrete(etapa, conta, total_quizzes):
     link = url_publica("assinatura")
     if etapa == "antes":
         dias = max(1, round((conta["pago_ate"] - time.time()) / DIA))
-        assunto = f"Sua assinatura do Quizify vence em {dias} dia{'s' if dias > 1 else ''}"
+        assunto = f"Sua assinatura do Quizzify vence em {dias} dia{'s' if dias > 1 else ''}"
         titulo = "⏳ Sua assinatura está perto de vencer"
         texto = (f"Sua assinatura{' do plano ' + plano if plano else ''} vence em <b>{quando}</b>. "
                  "Renove agora para continuar criando quizzes sem interrupção — "
                  "os dias que ainda faltam são somados ao novo período.")
     else:
-        assunto = "Sua assinatura do Quizify venceu"
+        assunto = "Sua assinatura do Quizzify venceu"
         titulo = "⛔ Sua assinatura venceu"
         salvos = (f" Seus <b>{total_quizzes} quiz{'zes' if total_quizzes > 1 else ''}</b> continuam guardados"
                   " e voltam a ficar disponíveis assim que renovar.") if total_quizzes else ""
@@ -1213,7 +1213,7 @@ def email_lembrete(etapa, conta, total_quizzes):
 <title>{assunto}</title></head>
 <body style="margin:0;padding:0;background:#ffffff">
 <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;color:#1e293b">
-<p style="font-family:Arial,sans-serif;font-size:30px;font-weight:800;letter-spacing:-1px;color:#24133E;margin:0 0 16px">quizify<span style="color:#5920AB">.</span></p>
+<p style="font-family:Arial,sans-serif;font-size:30px;font-weight:800;letter-spacing:-1px;color:#24133E;margin:0 0 16px">quizzify<span style="color:#5920AB">.</span></p>
 <h2 style="font-size:18px;margin:0 0 12px">{titulo}</h2>
 <p style="font-size:15px;line-height:1.5">{texto}</p>
 <p style="text-align:center;margin:28px 0"><a href="{link}" style="background:#5920AB;color:#fff;text-decoration:none;
@@ -1222,7 +1222,7 @@ font-weight:bold;padding:14px 28px;border-radius:12px;display:inline-block">Reno
 Se já renovou, pode ignorar este e-mail.<br>
 Dúvidas? Responda este e-mail ou escreva para <a href="mailto:{EMAIL_SUPORTE}" style="color:#64748b">{EMAIL_SUPORTE}</a>.</p></div>
 </body></html>"""
-    texto_simples = (f"Quizify\n\n{titulo}\n\n{re.sub(r'<[^>]+>', '', texto)}\n\n"
+    texto_simples = (f"Quizzify\n\n{titulo}\n\n{re.sub(r'<[^>]+>', '', texto)}\n\n"
                      f"Renovar assinatura: {link}\n\n"
                      "Pagamento por Pix ou cartão, com liberação imediata.\n"
                      "Se já renovou, pode ignorar este e-mail.\n"
@@ -1237,7 +1237,7 @@ def montar_email(assunto, titulo, miolo_html, botao, link, miolo_texto, depois_h
 <title>{assunto}</title></head>
 <body style="margin:0;padding:0;background:#ffffff">
 <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;color:#1e293b">
-<p style="font-family:Arial,sans-serif;font-size:30px;font-weight:800;letter-spacing:-1px;color:#24133E;margin:0 0 16px">quizify<span style="color:#5920AB">.</span></p>
+<p style="font-family:Arial,sans-serif;font-size:30px;font-weight:800;letter-spacing:-1px;color:#24133E;margin:0 0 16px">quizzify<span style="color:#5920AB">.</span></p>
 <h2 style="font-size:18px;margin:0 0 12px">{titulo}</h2>
 {miolo_html}
 <p style="text-align:center;margin:28px 0"><a href="{link}" style="background:#5920AB;color:#fff;text-decoration:none;
@@ -1246,7 +1246,7 @@ font-weight:bold;padding:14px 28px;border-radius:12px;display:inline-block">{bot
 <p style="font-size:13px;color:#64748b">Dúvidas ou dificuldade para acessar? Responda este e-mail ou escreva para
 <a href="mailto:{EMAIL_SUPORTE}" style="color:#64748b">{EMAIL_SUPORTE}</a>.</p></div>
 </body></html>"""
-    texto = f"Quizify\n\n{titulo}\n\n{miolo_texto}\n\n{botao}: {link}\n\nDúvidas? Escreva para {EMAIL_SUPORTE}\n"
+    texto = f"Quizzify\n\n{titulo}\n\n{miolo_texto}\n\n{botao}: {link}\n\nDúvidas? Escreva para {EMAIL_SUPORTE}\n"
     return assunto, corpo, texto
 
 
@@ -1258,19 +1258,19 @@ def email_boas_vindas(email, conta):
 está liberado até <b>{validade}</b>.</p>
 <p {p}><b>Para entrar:</b> acesse <a href="{URL_APP}">app.quizzify.com.br</a> com
 <b>{email}</b> e a sua senha.</p>"""
-    depois = f"""<p {p}><b>📲 Quer o Quizify na tela do celular?</b> (opcional — funciona igual no navegador)<br>
+    depois = f"""<p {p}><b>📲 Quer o Quizzify na tela do celular?</b> (opcional — funciona igual no navegador)<br>
 <b>Android:</b> abra o link no <b>Chrome</b>, toque em <b>⋮</b> e em <b>Instalar app</b>.<br>
 <b>iPhone:</b> abra no <b>Safari</b>, toque em <b>Compartilhar</b> (□↑) e em <b>Adicionar à Tela de Início</b>.</p>
 <p style="font-size:13px;color:#64748b">Esqueceu a senha? Na tela de entrar, toque em
 <a href="{URL_APP}/esqueci-senha" style="color:#64748b">Esqueci minha senha</a>.</p>"""
     texto = (f"Pagamento confirmado! Seu acesso{' ao plano ' + plano if plano else ''} está liberado até {validade}.\n\n"
              f"Para entrar: acesse {URL_APP} com {email} e a sua senha.\n\n"
-             "Quer o Quizify na tela do celular? (opcional)\n"
+             "Quer o Quizzify na tela do celular? (opcional)\n"
              "Android: abra o link no Chrome, toque em ⋮ e em Instalar app.\n"
              "iPhone: abra no Safari, toque em Compartilhar e em Adicionar à Tela de Início.\n\n"
              f"Esqueceu a senha? {URL_APP}/esqueci-senha")
-    return montar_email("Seu acesso ao Quizify está liberado 🎉", "🎉 Bem-vindo(a) ao Quizify!",
-                        miolo, "Acessar o Quizify", URL_APP + "/", texto, depois)
+    return montar_email("Seu acesso ao Quizzify está liberado 🎉", "🎉 Bem-vindo(a) ao Quizzify!",
+                        miolo, "Acessar o Quizzify", URL_APP + "/", texto, depois)
 
 
 def enviar_boas_vindas(email, conta, nome=None):
@@ -1300,7 +1300,7 @@ def email_nova_senha(link):
              '<p style="font-size:13px;color:#64748b">Não pediu? Pode ignorar este e-mail: sua senha continua a mesma.</p>')
     texto = ("Recebemos um pedido para criar uma nova senha. O link vale por 1 hora e só funciona uma vez.\n"
              "Não pediu? Pode ignorar este e-mail.")
-    return montar_email("Criar nova senha do Quizify", "🔑 Criar nova senha", miolo, "Criar nova senha", link, texto)
+    return montar_email("Criar nova senha do Quizzify", "🔑 Criar nova senha", miolo, "Criar nova senha", link, texto)
 
 
 @app.route("/esqueci-senha", methods=["GET", "POST"])
@@ -1412,13 +1412,13 @@ def email_teste(etapa, nome, conta, total_quizzes):
                  if total_quizzes else " Tudo o que você criou continua guardado.")
     if etapa == "teste_antes":
         dias = int(max(0, conta["expira_em"] - time.time()) // DIA) + 1
-        assunto = f"Seu teste do Quizify acaba em {dias} dia{'s' if dias > 1 else ''}"
+        assunto = f"Seu teste do Quizzify acaba em {dias} dia{'s' if dias > 1 else ''}"
         titulo = "⏳ Seu teste está acabando"
         texto = (f"Seu acesso de teste termina em <b>{data_hora(conta['expira_em'])}</b>. "
                  f"Para continuar criando quizzes e flashcards, escolha um plano.{guardados}")
         botao = "Escolher meu plano"
     else:
-        assunto = "Seu teste do Quizify acabou — seus quizzes estão guardados"
+        assunto = "Seu teste do Quizzify acabou — seus quizzes estão guardados"
         titulo = "Seu teste acabou 💾"
         texto = f"Esperamos que tenha gostado!{guardados} Assine para voltar a criar quizzes na hora."
         botao = "Assinar e continuar"
@@ -1869,7 +1869,7 @@ def manifesto():
     icone = lambda nome, tam, uso="any": {"src": url_for("static", filename=f"icons/{nome}"),
                                          "sizes": f"{tam}x{tam}", "type": "image/png", "purpose": uso}
     dados = {
-        "id": "/", "name": "Quizify", "short_name": "Quizify", "lang": "pt-BR",
+        "id": "/", "name": "Quizzify", "short_name": "Quizzify", "lang": "pt-BR",
         "description": "Transforme documentos e fotos em quizzes e flashcards com IA.",
         "start_url": "/?origem=app", "scope": "/", "display": "standalone", "orientation": "portrait",
         "background_color": COR_APP, "theme_color": COR_APP,

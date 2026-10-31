@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block titulo %}Quizify - Gerador de Quizzes e Flashcards com IA{% endblock %}</title>
+    <title>{% block titulo %}Quizzify - Gerador de Quizzes e Flashcards com IA{% endblock %}</title>
     {#- Tema de cores escolhido no 🎨 (guardado no celular). Aplicado antes de desenhar a página, sem piscar. #}
     <script>
         window.CORES_BARRA = {"quizify": "#160B29", "classico": "#0f172a", "oceano": "#071426", "sol": "#1a080b", "claro": "#F6F2FD"};
@@ -54,7 +54,7 @@
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Quizify">
+    <meta name="apple-mobile-web-app-title" content="Quizzify">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-between p-4">
@@ -64,9 +64,9 @@
                 class="absolute top-3 right-3 w-10 h-10 rounded-full bg-slate-900 border border-slate-700 text-lg flex items-center justify-center hover:border-lima">🎨</button>
         <header class="text-center mb-6">
             <h1 class="flex justify-center"><a href="{{ url_for('index') }}">
-                <img src="{{ url_for('static', filename='img/quizify-nome.svg') }}" alt="quizify." width="158" height="47" class="logo-padrao h-11 w-auto">
-                <img src="{{ url_for('static', filename='img/quizify-nome-claro.svg') }}" alt="quizify." width="158" height="47" class="logo-claro h-11 w-auto" loading="lazy">
-                <span class="logo-classico text-3xl font-extrabold tracking-wide" style="color:#ef4444">🎲 Quizify</span>
+                <img src="{{ url_for('static', filename='img/quizzify-nome.svg') }}" alt="quizzify." width="185" height="47" class="logo-padrao h-11 w-auto">
+                <img src="{{ url_for('static', filename='img/quizzify-nome-claro.svg') }}" alt="quizzify." width="185" height="47" class="logo-claro h-11 w-auto" loading="lazy">
+                <span class="logo-classico text-3xl font-extrabold tracking-wide" style="color:#ef4444">🎲 Quizzify</span>
             </a></h1>
             <p class="text-sm text-slate-400 mt-1">Transforme documentos em quizzes e flashcards interativos com IA</p>
             {% if session.usuario %}
@@ -88,7 +88,7 @@
         <div id="instalar-app" class="hidden mb-4 rounded-xl border border-slate-600 bg-slate-900 p-3 text-sm">
             <div class="flex items-center gap-3">
                 <img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" class="w-10 h-10 rounded-xl">
-                <p class="flex-1 text-slate-200 leading-snug"><b>Instale o Quizify</b><br>
+                <p class="flex-1 text-slate-200 leading-snug"><b>Instale o Quizzify</b><br>
                     <span class="text-xs text-slate-400">Ícone na tela inicial, abre mais rápido.</span></p>
                 <button id="instalar-botao" type="button" class="bg-lima hover:bg-lima-claro text-tinta font-bold px-3 py-2 rounded-lg">Instalar</button>
                 <button id="instalar-fechar" type="button" class="text-slate-500 hover:text-white text-lg px-1" aria-label="Agora não">✕</button>
@@ -104,7 +104,7 @@
                 <li>Confirme em <b>Instalar</b>. Pronto!</li>
             </ol>
             <div id="instalar-navegador" class="hidden mt-3 text-slate-300 space-y-2">
-                <p>Para instalar, o Quizify precisa abrir no <b id="instalar-nome-navegador">navegador</b> do celular.
+                <p>Para instalar, o Quizzify precisa abrir no <b id="instalar-nome-navegador">navegador</b> do celular.
                     Toque no botão: ele abre <b>já com a sua conta</b>, é só tocar em <b>Instalar</b> lá.</p>
                 <a id="instalar-abrir" href="{{ instalar_link }}" target="_blank" rel="noopener"
                    class="block text-center bg-lima hover:bg-lima-claro text-tinta font-bold py-3 rounded-xl">Abrir no navegador</a>
@@ -143,7 +143,7 @@
 
     <footer class="text-xs text-slate-500 mt-6">
         <p class="text-center">Precisa de ajuda? <a href="mailto:contato@quizzify.com.br" class="underline hover:text-white">contato@quizzify.com.br</a></p>
-        <p class="text-center mt-1">Quizify &copy; 2026 - Todos os direitos reservados.</p>
+        <p class="text-center mt-1">Quizzify &copy; 2026 - Todos os direitos reservados.</p>
     </footer>
     <div id="temas" class="hidden fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="temas-titulo">
         <div data-fechar class="absolute inset-0 bg-black/60"></div>
@@ -152,7 +152,7 @@
             <h3 id="temas-titulo" class="font-bold text-lg text-center text-slate-100">🎨 Escolha as cores</h3>
             <p class="text-xs text-slate-400 text-center mt-1">Muda só a aparência do app neste celular. Pode trocar quando quiser.</p>
             <div class="grid grid-cols-5 gap-2 mt-5">
-                {% for id, nome, fundo, destaque in [("quizify", "Quizify", "#24133E", "#C1FC38"), ("classico", "Clássico", "#1e293b", "#ef4444"),
+                {% for id, nome, fundo, destaque in [("quizify", "Quizzify", "#24133E", "#C1FC38"), ("classico", "Clássico", "#1e293b", "#ef4444"),
                                                     ("oceano", "Oceano", "#12263D", "#22D3EE"), ("sol", "Pôr do sol", "#36161A", "#FB923C"),
                                                     ("claro", "Claro", "#FFFFFF", "#5920AB")] %}
                 <button type="button" data-tema="{{ id }}" class="flex flex-col items-center gap-2 text-slate-200">

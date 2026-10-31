@@ -1,4 +1,4 @@
-// "Instalar o app": ícone do Quizify na tela inicial do celular.
+// "Instalar o app": ícone do Quizzify na tela inicial do celular.
 // No celular a faixa aparece sempre (com o passo a passo pelo menu do navegador).
 // Quando o Chrome/Edge libera o pedido de instalação, o botão passa a instalar direto.
 (() => {
