@@ -52,6 +52,9 @@ MIME_IMG = {".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
             ".webp": "image/webp", ".heic": "image/heic", ".heif": "image/heif"}
 
 app = Flask(__name__)
+# Render atende em HTTPS e repassa como HTTP: confia no X-Forwarded-Proto para os links absolutos saírem com https
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1)
 app.config["MAX_CONTENT_LENGTH"] = MAX_TOTAL_MB * 1024 * 1024
 app.json.ensure_ascii = False
 app.config.update(
