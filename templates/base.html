@@ -4,17 +4,22 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block titulo %}Quizify - Gerador de Quizzes e Flashcards com IA{% endblock %}</title>
-    <script src="https://cdn.tailwindcss.com/3.4.16"></script>
-    {#- Marca: roxo #5920AB, verde-limão #C1FC38, tinta #24133E. A escala "slate"
-        vira tons de roxo, então todas as telas mudam juntas. #}
+    {#- Tema de cores escolhido no 🎨 (guardado no celular). Aplicado antes de desenhar a página, sem piscar. #}
     <script>
+        window.CORES_BARRA = {"quizify": "#160B29", "classico": "#0f172a", "oceano": "#071426", "sol": "#1a080b", "claro": "#F6F2FD"};
+        try { var t = localStorage.getItem('quizify-tema'); if (t && window.CORES_BARRA[t]) document.documentElement.dataset.tema = t; } catch (e) {}
+    </script>
+    <script src="https://cdn.tailwindcss.com/3.4.16"></script>
+    {#- Marca: roxo #5920AB, verde-limão #C1FC38, tinta #24133E. As cores vêm de variáveis CSS
+        (uma lista por tema, abaixo); a escala "slate" do Tailwind usa essas variáveis. #}
+    <script>
+        const cor = (v) => `rgb(var(--${v}) / <alpha-value>)`;
         tailwind.config = { theme: { extend: {
             colors: {
-                slate: { 50: '#F6F2FD', 100: '#F1EBFB', 200: '#E2D7F5', 300: '#D2C4EC', 400: '#B9A8D9', 500: '#9C88C4',
-                         600: '#5B4388', 700: '#3D2766', 800: '#24133E', 900: '#1A0E2E', 950: '#10071F' },
-                lima: { DEFAULT: '#C1FC38', claro: '#D4FF6B' },
+                slate: Object.fromEntries([50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map((n) => [n, cor('s' + n)])),
+                lima: { DEFAULT: cor('lima'), claro: cor('lima-claro') },
                 roxo: '#5920AB',
-                tinta: '#24133E',
+                tinta: cor('tinta'),
             },
             fontFamily: { sans: ['Jakarta', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'] },
         } } };
@@ -26,11 +31,25 @@
                      src: url("{{ url_for('static', filename='fonts/plus-jakarta-sans-400.woff2') }}") format("woff2"); }
         @font-face { font-family: Jakarta; font-weight: 600 900; font-display: swap;
                      src: url("{{ url_for('static', filename='fonts/plus-jakarta-sans-800.woff2') }}") format("woff2"); }
-        body { background: radial-gradient(1200px 600px at 50% -200px, #3a1d6e 0%, #160B29 60%) fixed, #160B29; }
+        :root { --s50: 246 242 253; --s100: 241 235 251; --s200: 226 215 245; --s300: 210 196 236; --s400: 185 168 217; --s500: 156 136 196; --s600: 91 67 136; --s700: 61 39 102; --s800: 36 19 62; --s900: 26 14 46; --s950: 16 7 31; --lima: 193 252 56; --lima-claro: 212 255 107; --tinta: 36 19 62; --fundo: radial-gradient(1200px 600px at 50% -200px, #3a1d6e 0%, #160B29 60%) fixed, #160B29; }
+        :root[data-tema="classico"] { --s50: 248 250 252; --s100: 241 245 249; --s200: 226 232 240; --s300: 203 213 225; --s400: 148 163 184; --s500: 100 116 139; --s600: 71 85 105; --s700: 51 65 85; --s800: 30 41 59; --s900: 15 23 42; --s950: 2 6 23; --lima: 239 68 68; --lima-claro: 220 38 38; --tinta: 255 255 255; --fundo: #0f172a; }
+        :root[data-tema="oceano"] { --s50: 239 247 255; --s100: 230 241 251; --s200: 207 227 245; --s300: 181 208 234; --s400: 143 177 211; --s500: 111 147 184; --s600: 62 95 132; --s700: 36 66 95; --s800: 18 38 61; --s900: 11 26 46; --s950: 6 16 30; --lima: 34 211 238; --lima-claro: 103 232 249; --tinta: 6 32 51; --fundo: radial-gradient(1200px 600px at 50% -200px, #12406b 0%, #071426 60%) fixed, #071426; }
+        :root[data-tema="sol"] { --s50: 255 244 240; --s100: 252 237 231; --s200: 245 216 204; --s300: 234 192 175; --s400: 212 156 136; --s500: 184 124 104; --s600: 122 64 56; --s700: 85 40 38; --s800: 54 22 26; --s900: 38 14 18; --s950: 24 7 10; --lima: 251 146 60; --lima-claro: 253 186 116; --tinta: 42 14 5; --fundo: radial-gradient(1200px 600px at 50% -200px, #5a1f24 0%, #1a080b 60%) fixed, #1a080b; }
+        :root[data-tema="claro"] { --s50: 36 19 62; --s100: 36 19 62; --s200: 61 39 102; --s300: 74 58 102; --s400: 107 90 138; --s500: 126 111 153; --s600: 201 188 224; --s700: 226 215 245; --s800: 255 255 255; --s900: 246 242 253; --s950: 239 232 250; --lima: 89 32 171; --lima-claro: 109 51 196; --tinta: 255 255 255; --fundo: linear-gradient(#F6F2FD, #EDE5FA) fixed, #F6F2FD; }
+        body { background: var(--fundo); }
+        /* logo de cada tema */
+        .logo-claro, .logo-classico { display: none !important; }
+        [data-tema="claro"] .logo-padrao, [data-tema="classico"] .logo-padrao { display: none !important; }
+        [data-tema="claro"] .logo-claro, [data-tema="classico"] .logo-classico { display: inline-block !important; }
+        [data-tema="classico"] body { font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+        /* tema claro: texto escuro onde o app usa branco */
+        [data-tema="claro"] .text-white, [data-tema="claro"] .hover\:text-white:hover { color: rgb(var(--s100)) !important; }
+        [data-tema="claro"] .bg-lima, [data-tema="claro"] .peer:checked ~ .peer-checked\:bg-lima { color: #fff !important; }
     </style>
     {#- App instalável: ícone na tela inicial do celular #}
     <link rel="manifest" href="{{ url_for('manifesto') }}">
-    <meta name="theme-color" content="#160B29">
+    <meta name="theme-color" content="#160B29" id="cor-barra">
+    <script>try { document.getElementById("cor-barra").content = window.CORES_BARRA[document.documentElement.dataset.tema || "quizify"]; } catch (e) {}</script>
     <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/favicon-32.png') }}">
     <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
     <meta name="apple-mobile-web-app-capable" content="yes">
@@ -40,9 +59,15 @@
 </head>
 <body class="bg-slate-900 text-slate-100 min-h-screen flex flex-col items-center justify-between p-4">
 
-    <main class="w-full max-w-md bg-slate-800 rounded-2xl shadow-xl p-6 border border-slate-700">
+    <main class="relative w-full max-w-md bg-slate-800 rounded-2xl shadow-xl p-6 border border-slate-700">
+        <button id="temas-abrir" type="button" aria-label="Escolher as cores do app" title="Cores"
+                class="absolute top-3 right-3 w-10 h-10 rounded-full bg-slate-900 border border-slate-700 text-lg flex items-center justify-center hover:border-lima">🎨</button>
         <header class="text-center mb-6">
-            <h1 class="flex justify-center"><a href="{{ url_for('index') }}"><img src="{{ url_for('static', filename='img/quizify-nome.svg') }}" alt="quizify." width="158" height="47" class="h-11 w-auto"></a></h1>
+            <h1 class="flex justify-center"><a href="{{ url_for('index') }}">
+                <img src="{{ url_for('static', filename='img/quizify-nome.svg') }}" alt="quizify." width="158" height="47" class="logo-padrao h-11 w-auto">
+                <img src="{{ url_for('static', filename='img/quizify-nome-claro.svg') }}" alt="quizify." width="158" height="47" class="logo-claro h-11 w-auto" loading="lazy">
+                <span class="logo-classico text-3xl font-extrabold tracking-wide" style="color:#ef4444">🎲 Quizify</span>
+            </a></h1>
             <p class="text-sm text-slate-400 mt-1">Transforme documentos em quizzes e flashcards interativos com IA</p>
             {% if session.usuario %}
             <nav class="flex justify-center items-center gap-3 mt-3 text-xs text-slate-400">
@@ -120,7 +145,27 @@
         <p class="text-center">Precisa de ajuda? <a href="mailto:contato@quizzify.com.br" class="underline hover:text-white">contato@quizzify.com.br</a></p>
         <p class="text-center mt-1">Quizify &copy; 2026 - Todos os direitos reservados.</p>
     </footer>
+    <div id="temas" class="hidden fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="temas-titulo">
+        <div data-fechar class="absolute inset-0 bg-black/60"></div>
+        <div class="absolute bottom-0 inset-x-0 mx-auto max-w-md bg-slate-800 border border-slate-700 rounded-t-3xl px-4 pt-4 pb-8 shadow-2xl">
+            <div class="w-10 h-1 rounded-full bg-slate-600 mx-auto mb-3"></div>
+            <h3 id="temas-titulo" class="font-bold text-lg text-center text-slate-100">🎨 Escolha as cores</h3>
+            <p class="text-xs text-slate-400 text-center mt-1">Muda só a aparência do app neste celular. Pode trocar quando quiser.</p>
+            <div class="grid grid-cols-5 gap-2 mt-5">
+                {% for id, nome, fundo, destaque in [("quizify", "Quizify", "#24133E", "#C1FC38"), ("classico", "Clássico", "#1e293b", "#ef4444"),
+                                                    ("oceano", "Oceano", "#12263D", "#22D3EE"), ("sol", "Pôr do sol", "#36161A", "#FB923C"),
+                                                    ("claro", "Claro", "#FFFFFF", "#5920AB")] %}
+                <button type="button" data-tema="{{ id }}" class="flex flex-col items-center gap-2 text-slate-200">
+                    <span class="tema-bolinha w-12 h-12 rounded-full flex items-center justify-center font-extrabold text-white"
+                          style="background:linear-gradient(135deg,{{ fundo }} 50%,{{ destaque }} 50%);border:2px solid rgba(255,255,255,.25);text-shadow:0 1px 3px #000"></span>
+                    <span class="text-xs font-bold leading-tight text-center">{{ nome }}{% if id == "classico" %}<br><span class="font-normal text-slate-400">(anterior)</span>{% endif %}</span>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
     <script src="{{ url_for('static', filename='js/copiar.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/temas.js') }}?v=1"></script>
     <script src="{{ url_for('static', filename='js/instalar.js') }}?v=2"></script>
     <script src="{{ url_for('static', filename='js/senha.js') }}?v=1"></script>
     {% block scripts %}{% endblock %}
