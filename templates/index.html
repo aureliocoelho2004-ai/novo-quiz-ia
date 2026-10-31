@@ -30,8 +30,9 @@
         <label for="arquivos" class="block text-sm font-medium mb-2 text-slate-300">
             Arquivos ou fotos (PDF, Word, PowerPoint, imagens — máx. {{ max_arquivos }})
         </label>
-        <input type="file" id="arquivos" multiple accept=".pdf,.docx,.pptx,image/*"
-               class="w-full text-sm text-slate-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-lima file:text-tinta hover:file:bg-lima-claro cursor-pointer">
+        {#- botão próprio: o do navegador aparece em inglês em alguns celulares #}
+        <input type="file" id="arquivos" multiple accept=".pdf,.docx,.pptx,image/*" class="sr-only">
+        <label for="arquivos" class="inline-flex items-center gap-2 bg-lima hover:bg-lima-claro text-tinta font-semibold text-sm py-2.5 px-4 rounded-xl cursor-pointer">📎 Escolher arquivos ou fotos</label>
         <p id="contador-arquivos" class="text-xs text-slate-400 mt-2">Nenhum arquivo selecionado (0/{{ max_arquivos }})</p>
     </div>
 
@@ -65,7 +66,7 @@
             <input id="link" readonly class="flex-1 min-w-0 bg-slate-900 border border-slate-700 rounded-xl p-2 text-xs text-slate-200">
             <button id="btn-copiar" type="button" class="bg-slate-700 hover:bg-slate-600 px-3 rounded-xl text-sm font-semibold">Copiar</button>
         </div>
-        <a id="btn-abrir" target="_blank" rel="noopener" class="block text-center bg-blue-600 hover:bg-blue-700 font-bold py-3 rounded-xl transition">Abrir link 🔗</a>
+        <a id="btn-abrir" target="_blank" rel="noopener" class="block text-center bg-roxo hover:brightness-110 text-white font-bold py-3 rounded-xl transition">Abrir link 🔗</a>
     </div>
     <p id="aviso-link" class="hidden text-xs text-amber-400 text-center">Não foi possível gerar o link agora, mas pode baixar o arquivo abaixo.</p>
 

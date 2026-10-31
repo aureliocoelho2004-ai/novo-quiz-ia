@@ -12,7 +12,7 @@
         </div>
     </div>
     <div class="grid grid-cols-3 gap-2 text-sm font-semibold">
-        <a data-campo="abrir" href="{{ item.link }}" target="_blank" rel="noopener" class="text-center bg-blue-600 hover:bg-blue-700 rounded-lg py-2">Abrir</a>
+        <a data-campo="abrir" href="{{ item.link }}" target="_blank" rel="noopener" class="text-center bg-roxo hover:brightness-110 text-white rounded-lg py-2">Abrir</a>
         <button type="button" data-copiar="{{ item.link }}" class="bg-slate-700 hover:bg-slate-600 rounded-lg py-2">Copiar link</button>
         <a data-campo="baixar" href="{{ url_for('baixar_quiz', item_id=item.id) if item.id else '#' }}" class="text-center bg-emerald-700 hover:bg-emerald-600 rounded-lg py-2">Baixar</a>
     </div>
