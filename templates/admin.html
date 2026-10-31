@@ -70,6 +70,27 @@
         {% endif %}
     </div>
 
+    {% if divulgacao %}
+    <form method="post" class="space-y-3 bg-slate-900 p-4 rounded-xl border border-slate-700">
+        <input type="hidden" name="acao" value="divulgacao">
+        <h3 class="font-semibold">📣 Faixa de divulgação nos quizzes</h3>
+        <p class="text-xs text-slate-400">Aparece no topo dos quizzes e flashcards que os clientes compartilham, com link para a
+            <code>/assine?origem=quiz</code>. Desligar vale para <b>todos</b> os quizzes (até os antigos) em até 5 minutos.</p>
+        <label class="flex items-center gap-2 text-sm">
+            <input type="checkbox" name="ligada" value="1" class="accent-lima w-5 h-5" {% if divulgacao.ligada %}checked{% endif %}>
+            <b>{{ 'Ligada' if divulgacao.ligada else 'Desligada' }}</b>
+        </label>
+        {% for campo, rotulo, limite in [("texto", "Texto", 160), ("destaque", "Destaque (em verde)", 160), ("botao", "Botão", 60)] %}
+        <div>
+            <label class="block text-xs text-slate-400 mb-1" for="dv-{{ campo }}">{{ rotulo }}</label>
+            <input id="dv-{{ campo }}" name="{{ campo }}" value="{{ divulgacao[campo] }}" maxlength="{{ limite }}"
+                   class="w-full bg-slate-800 border border-slate-700 rounded-xl p-2 text-sm text-white">
+        </div>
+        {% endfor %}
+        <button class="w-full bg-lima hover:bg-lima-claro text-tinta font-bold py-2.5 rounded-xl transition">Salvar faixa</button>
+    </form>
+    {% endif %}
+
     <div class="space-y-2">
         <h3 class="font-semibold">Utilizadores ({{ usuarios | length }})</h3>
         {% for nome, conta in usuarios %}

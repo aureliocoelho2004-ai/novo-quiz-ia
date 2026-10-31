@@ -348,5 +348,6 @@ function tocarCelebracao() {
 iniciar(QUESTOES, false);
 </script>
 {% if autoplay %}{% include "_quiz_autoplay.html" %}{% endif %}
+{% if divulgacao_js %}<script src="{{ divulgacao_js }}" async></script>{% endif %}
 </body>
 </html>

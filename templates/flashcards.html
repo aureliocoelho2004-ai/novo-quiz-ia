@@ -92,5 +92,6 @@ $('btn-recomecar').onclick = () => { baralho = embaralhar(baralho); indice = 0; 
 $('total').textContent = CARTOES.length;
 mostrar();
 </script>
+{% if divulgacao_js %}<script src="{{ divulgacao_js }}" async></script>{% endif %}
 </body>
 </html>

@@ -808,7 +808,7 @@ def ler_metricas():
 @app.before_request
 def registrar_origem():
     if request.method != "GET" or request.endpoint in (None, "static", "health", "service_worker", "manifesto",
-                                                       "demo", "demo_video", "tarefa_lembretes") or eh_robo():
+                                                       "demo", "demo_video", "tarefa_lembretes", "divulgacao_js") or eh_robo():
         return
     pedida = origem_valida(request.args.get("origem"))
     guardada = origem_valida(request.cookies.get(COOKIE_ORIGEM))
@@ -969,6 +969,19 @@ def admin():
             conta = usuarios[nome]
             conta["pago_ate"] = max(time.time(), conta.get("pago_ate", 0)) + 30 * DIA
             flash(f"Assinatura de '{nome}' liberada até {data_hora(conta['pago_ate'])}.", "ok")
+        elif acao == "divulgacao":
+            novo = {"ligada": request.form.get("ligada") == "1",
+                    "texto": request.form.get("texto", "").strip()[:160] or DIVULGACAO_PADRAO["texto"],
+                    "destaque": request.form.get("destaque", "").strip()[:160],
+                    "botao": request.form.get("botao", "").strip()[:60] or DIVULGACAO_PADRAO["botao"]}
+            try:
+                gravar_json_versionado(ARQUIVO_DIVULGACAO, novo)
+                _divulgacao_cache.update(dados=novo, quando=time.time())
+                flash(f"Faixa de divulgação {'ligada' if novo['ligada'] else 'desligada'}. Vale para todos os quizzes em até 5 minutos.", "ok")
+            except Exception:
+                log.exception("Falha ao salvar divulgação")
+                flash("Não foi possível salvar a faixa agora. Tente novamente.", "erro")
+            return redirect(url_for("admin"))
         elif acao == "email" and nome in usuarios:
             email = request.form.get("email", "").strip().lower()
             if email and not EMAIL_VALIDO.fullmatch(email):
@@ -996,7 +1009,8 @@ def admin():
         return redirect(url_for("admin"))
 
     return render_template("admin.html", usuarios=sorted(usuarios.items()), agora=time.time(),
-                           config_limite_teste=LIMITE_TESTE, metricas=ler_metricas())
+                           config_limite_teste=LIMITE_TESTE, metricas=ler_metricas(),
+                           divulgacao=ler_divulgacao(fresco=True))
 
 
 EMAIL_VALIDO = re.compile(r"[^@\s]+@[^@\s]+\.[a-z]{2,}")
@@ -1529,6 +1543,72 @@ def dados_assinatura():
     return {}
 
 
+# ---------- Faixa de divulgação nos quizzes compartilhados ----------
+# O quiz só traz <script src=".../divulgacao.js">: quem decide se a faixa aparece
+# (e com que texto) é o servidor, na hora em que o aluno abre. Desligar no /admin
+# vale para todos os quizzes, inclusive os já compartilhados.
+ARQUIVO_DIVULGACAO = "config/divulgacao.json"
+DIVULGACAO_PADRAO = {"ligada": True, "texto": "✨ Gere você mesmo seus quizzes a partir de textos ou fotos.",
+                     "destaque": "Custa menos de R$ 1,00 por dia!", "botao": "Quero criar os meus ➜"}
+_divulgacao_cache = {"dados": None, "quando": 0}
+
+
+def ler_divulgacao(fresco=False):
+    if not fresco and _divulgacao_cache["dados"] and time.time() - _divulgacao_cache["quando"] < 60:
+        return _divulgacao_cache["dados"]
+    try:
+        dados, _ = ler_json_versionado(ARQUIVO_DIVULGACAO)
+    except Exception:
+        log.exception("Falha ao ler a configuração da divulgação")
+        dados = None
+    dados = {**DIVULGACAO_PADRAO, **(dados or {})}
+    _divulgacao_cache.update(dados=dados, quando=time.time())
+    return dados
+
+
+FAIXA_JS = """(function () {
+  var c = %s;
+  try { if (sessionStorage.getItem('quizify-faixa-fechada')) return; } catch (e) {}
+  function montar() {
+    var st = document.createElement('style');
+    st.textContent = '.qz-faixa{position:fixed;top:0;left:0;right:0;z-index:30;padding:10px 44px 10px 14px;background:#5920AB;color:#fff;'
+      + 'font:600 13.5px/1.35 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.35);text-align:left}'
+      + '.qz-faixa b{color:#C1FC38}.qz-faixa a{display:inline-block;margin-top:6px;background:#C1FC38;color:#24133E;font-weight:800;'
+      + 'text-decoration:none;padding:6px 12px;border-radius:999px}.qz-faixa button{position:absolute;top:6px;right:8px;background:none;'
+      + 'border:0;color:#E2D7F5;font-size:18px;padding:4px 8px;cursor:pointer}';
+    document.head.appendChild(st);
+    var f = document.createElement('div'); f.className = 'qz-faixa';
+    var t = document.createElement('span'); t.textContent = c.texto + ' ';
+    var d = document.createElement('b'); d.textContent = c.destaque;
+    var a = document.createElement('a'); a.href = c.link; a.target = '_blank'; a.rel = 'noopener'; a.textContent = c.botao;
+    var x = document.createElement('button'); x.type = 'button'; x.setAttribute('aria-label', 'Fechar'); x.textContent = '\u2715';
+    f.appendChild(t); f.appendChild(d); f.appendChild(document.createElement('br')); f.appendChild(a); f.appendChild(x);
+    document.body.appendChild(f);
+    var antes = parseFloat(getComputedStyle(document.body).paddingTop) || 0;
+    function ajustar() { document.body.style.paddingTop = (antes + f.offsetHeight + 8) + 'px'; }
+    ajustar(); window.addEventListener('resize', ajustar);
+    x.onclick = function () { f.remove(); document.body.style.paddingTop = antes + 'px';
+      try { sessionStorage.setItem('quizify-faixa-fechada', '1'); } catch (e) {} };
+  }
+  if (document.body) montar(); else document.addEventListener('DOMContentLoaded', montar);
+})();"""
+
+
+@app.get("/divulgacao.js")
+def divulgacao_js():
+    cfg = ler_divulgacao()
+    tipo = request.args.get("tipo") if request.args.get("tipo") in ("quiz", "flashcards") else "quiz"
+    if cfg.get("ligada"):
+        dados = {k: str(cfg.get(k) or "")[:160] for k in ("texto", "destaque", "botao")}
+        dados["link"] = f"{URL_APP}/assine?origem={tipo}"
+        corpo = FAIXA_JS % json.dumps(dados, ensure_ascii=False).replace("</", "<\\/")
+    else:
+        corpo = "/* faixa desligada */"
+    resposta = Response(corpo, mimetype="application/javascript")
+    resposta.headers["Cache-Control"] = "public, max-age=300"   # desligar vale em até 5 minutos
+    return resposta
+
+
 # ---------- Teste grátis: aviso no topo e e-mail para os avisos ----------
 @app.context_processor
 def dados_teste():
@@ -1876,6 +1956,7 @@ def gerar():
     tipo = request.form.get("tipo", "quiz")
     titulo = (request.form.get("titulo") or "Desafio de Conhecimento").strip()[:120]
     professor = (request.form.get("professor") or "").strip()[:80]
+    divulgar = request.form.get("divulgar") == "1"
     try:
         n = min(max(int(request.form.get("quantidade", 10)), MIN_ITENS), MAX_ITENS)
     except ValueError:
@@ -1918,7 +1999,8 @@ def gerar():
             return jsonify(erro="A IA devolveu um resultado vazio. Tente novamente."), 502
 
         template = "quiz.html" if tipo == "quiz" else "flashcards.html"
-        conteudo_html = render_template(template, titulo=titulo, professor=professor, itens=itens)
+        conteudo_html = render_template(template, titulo=titulo, professor=professor, itens=itens,
+                                        divulgacao_js=f"{URL_APP}/divulgacao.js?tipo={tipo}" if divulgar else None)
         link, caminho = publicar_firebase(conteudo_html, tipo)
         if not sem_limite:
             registrar_geracao(usuario)
