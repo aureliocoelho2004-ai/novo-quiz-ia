@@ -1995,7 +1995,7 @@ SITE_MARCA = "https://quizzify.com.br/"
 # Perfis oficiais (Instagram, Facebook, YouTube...), separados por vírgula, no Render.
 REDES_SOCIAIS = list(dict.fromkeys(
     [u.strip() for u in os.environ.get("REDES_SOCIAIS", "").split(",") if u.strip()]
-    + ["https://www.youtube.com/@quizzify-z9f"]))
+    + ["https://www.youtube.com/@quizzify-z9f", "https://www.instagram.com/quizzifybrasil"]))
 
 
 def dados_estruturados():
