@@ -174,6 +174,7 @@
     @media (max-aspect-ratio: 4/5) and (max-height: 880px) { .fatos { display: none; } }
     @media (min-aspect-ratio: 4/5) and (max-height: 520px) { .sub { display: none; } }
 </style>
+{% include "_pixel.html" %}
 </head>
 <body>
 <div class="pagina">
@@ -197,11 +198,11 @@
         <a class="gratis" href="{{ url_for('cadastro', teste=1) }}">🎁 Começar grátis
             <small>{{ cota }} quizzes em {{ horas }} horas · sem cartão</small></a>
         <div class="planos">
-            <a class="plano anual" href="{{ url_for('assinar_plano', plano_id='anual') }}">
+            <a class="plano anual" data-pixel-checkout="anual" data-valor="{{ anual.centavos / 100 }}" href="{{ url_for('assinar_plano', plano_id='anual') }}">
                 Assinar agora
                 <small>Anual: R$ {{ reais(anual.centavos) }} por ano{% if economia > 0 %}, <b>economize R$ {{ reais(economia) }}</b>{% endif %}</small>
             </a>
-            <a class="plano mensal" href="{{ url_for('assinar_plano', plano_id='mensal') }}">
+            <a class="plano mensal" data-pixel-checkout="mensal" data-valor="{{ mensal.centavos / 100 }}" href="{{ url_for('assinar_plano', plano_id='mensal') }}">
                 Assinar agora
                 <small>Mensal: R$ {{ reais(mensal.centavos) }} por mês</small>
             </a>

@@ -1100,7 +1100,9 @@ def cadastro():
             return redirect(url_for("login", proximo=url_for("assinatura", plano=plano_id) if plano_id else None))
         registrar_tentativa(_cadastros, ip, agora)
         entrar_na_sessao(email, nova)
+        pixel("CompleteRegistration", content_name="teste_gratis" if gratis else (plano_id or "conta"))
         if gratis:
+            pixel("StartTrial", value=0, currency="BRL")
             enviar_inicio_teste(email, dict(nova))
             flash(f"Seu teste grátis começou! Você tem {TESTE_GRATIS_QUIZZES} quizzes para criar nas próximas "
                   f"{TESTE_GRATIS_HORAS} horas. 🎉", "ok")
@@ -1168,6 +1170,16 @@ def assinatura_retorno():
             log.exception("Falha ao confirmar retorno do pedido %s", pedido_id)
             resultado = "erro"
         if resultado in ("pago", "ja_pago"):
+            ja = session.get("pixel_pedidos") or []
+            if pedido_id not in ja:
+                try:
+                    pedido, _ = ler_json_versionado(f"pedidos/{pedido_id}.json")
+                    if pedido:
+                        pixel("Purchase", value=round(pedido["centavos"] / 100, 2), currency="BRL",
+                              content_name=pedido.get("plano"))
+                        session["pixel_pedidos"] = (ja + [pedido_id])[-5:]
+                except Exception:
+                    log.exception("Pixel: falha ao ler pedido %s", pedido_id)
             flash("Pagamento confirmado! O seu acesso está liberado. 🎉", "ok")
             return redirect(url_for("assinatura"))
     flash("Ainda não recebemos a confirmação do pagamento. Se já pagou, atualize esta página "
@@ -1262,6 +1274,22 @@ Dúvidas? Responda este e-mail ou escreva para <a href="mailto:{EMAIL_SUPORTE}" 
                      "Se já renovou, pode ignorar este e-mail.\n"
                      f"Dúvidas? Escreva para {EMAIL_SUPORTE}\n")
     return assunto, corpo, texto_simples
+
+
+META_PIXEL_ID = re.sub(r"\D", "", os.environ.get("META_PIXEL_ID", "4240290632768647"))
+
+
+def pixel(evento, **params):
+    """Guarda um evento do Pixel da Meta para disparar na próxima página que abrir."""
+    if META_PIXEL_ID:
+        session["pixel"] = (session.get("pixel") or [])[-4:] + [[evento, params]]
+
+
+@app.context_processor
+def dados_pixel():
+    if not META_PIXEL_ID or request.endpoint in ("admin", "demo", "demo_video"):
+        return {}
+    return {"pixel_id": META_PIXEL_ID, "pixel_eventos": session.pop("pixel", None) or []}
 
 
 VIDEO_TUTORIAL = os.environ.get("VIDEO_TUTORIAL", "https://youtu.be/4tOd9uzOfA8").strip()

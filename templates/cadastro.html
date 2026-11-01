@@ -33,7 +33,7 @@
                class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
     </div>
     {% endfor %}
-    <button class="w-full bg-lima hover:bg-lima-claro text-tinta font-bold py-3 rounded-xl transition shadow-lg shadow-lima/20">{{ "Começar meu teste grátis" if gratis else "Criar conta" }}</button>
+    <button {% if plano_id %}data-pixel-checkout="{{ plano_id }}" data-valor="{{ planos[plano_id].centavos / 100 }}" {% endif %}class="w-full bg-lima hover:bg-lima-claro text-tinta font-bold py-3 rounded-xl transition shadow-lg shadow-lima/20">{{ "Começar meu teste grátis" if gratis else "Criar conta" }}</button>
 </form>
 <p class="text-sm text-center text-slate-400 mt-6">Já tem conta?
     <a href="{{ url_for('login', proximo=url_for('assinatura', plano=plano_id)) if plano_id else url_for('login') }}" class="text-lima font-semibold underline">Entrar</a></p>

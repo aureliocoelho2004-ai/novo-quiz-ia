@@ -51,7 +51,7 @@
                 <p class="text-2xl font-extrabold">R$ {{ '%.2f' | format(plano.centavos / 100) | replace('.', ',') }}
                     <span class="text-sm font-normal text-slate-400">/ {{ 'mês' if id == 'mensal' else 'ano' }}</span></p>
                 <p class="text-xs text-slate-400">{{ plano.dias }} dias de acesso · Pix ou cartão{{ ' (até 12x)' if id == 'anual' }}</p>
-                <button class="w-full bg-lima hover:bg-lima-claro text-tinta font-bold py-2.5 rounded-xl transition">
+                <button data-pixel-checkout="{{ id }}" data-valor="{{ plano.centavos / 100 }}" class="w-full bg-lima hover:bg-lima-claro text-tinta font-bold py-2.5 rounded-xl transition">
                     {{ 'Renovar' if conta.pago_ate else 'Assinar' }} {{ plano.nome | lower }}
                 </button>
             </form>
