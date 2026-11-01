@@ -2121,7 +2121,7 @@ def cache_arquivos_fixos(resposta):
 # admin, quizzes e o resto do app ficam fora (noindex), para o resultado do
 # Google mostrar a página certa.
 # --------------------------------------------------------------------------- #
-PAGINAS_PUBLICAS = {"assine", "robots", "sitemap"}
+PAGINAS_PUBLICAS = {"assine", "robots", "sitemap", "pagina_privacidade", "pagina_termos", "pagina_cancelamento"}
 
 
 @app.get("/robots.txt")
@@ -2139,8 +2139,38 @@ def sitemap():
     xml = ('<?xml version="1.0" encoding="UTF-8"?>\n'
            '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
            f'  <url><loc>{url_publica("assine")}</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n'
+           + "".join(f'  <url><loc>{url_publica(e)}</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>\n'
+                     for e in ("pagina_termos", "pagina_privacidade", "pagina_cancelamento")) +
            '</urlset>\n')
     return Response(xml, mimetype="application/xml")
+
+
+# ---------- Páginas legais ----------
+# Quem opera o serviço (nome/razão social, CPF/CNPJ e endereço): exigido para venda online (Decreto 7.962/2013).
+OPERADOR_LEGAL = os.environ.get("OPERADOR_LEGAL", "").strip()
+
+
+def _ctx_legal():
+    reais = lambda c: f"{c / 100:.2f}".replace(".", ",")
+    return dict(atualizado="31 de outubro de 2026", email=EMAIL_SUPORTE,
+                dono=OPERADOR_LEGAL or "serviço brasileiro, contato " + EMAIL_SUPORTE,
+                cota=TESTE_GRATIS_QUIZZES, horas=TESTE_GRATIS_HORAS, limite=LIMITE_DIARIO,
+                mensal=reais(PLANOS["mensal"]["centavos"]), anual=reais(PLANOS["anual"]["centavos"]))
+
+
+@app.get("/privacidade")
+def pagina_privacidade():
+    return render_template("privacidade.html", **_ctx_legal())
+
+
+@app.get("/termos")
+def pagina_termos():
+    return render_template("termos.html", **_ctx_legal())
+
+
+@app.get("/cancelamento")
+def pagina_cancelamento():
+    return render_template("cancelamento.html", **_ctx_legal())
 
 
 @app.after_request

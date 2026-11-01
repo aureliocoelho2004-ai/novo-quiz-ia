@@ -207,7 +207,9 @@
                 <small>Mensal: R$ {{ reais(mensal.centavos) }} por mês</small>
             </a>
         </div>
-        <p class="nota">Pagamento por Pix ou cartão, com acesso liberado na hora.</p>
+        <p class="nota">Pagamento por Pix ou cartão, acesso na hora e <a href="{{ url_for('pagina_cancelamento') }}" style="color:inherit">7 dias de garantia</a>.
+            <a href="{{ url_for('pagina_termos') }}" style="color:inherit">Termos</a> ·
+            <a href="{{ url_for('pagina_privacidade') }}" style="color:inherit">Privacidade</a></p>
     </main>
 </div>
 

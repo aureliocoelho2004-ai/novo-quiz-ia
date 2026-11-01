@@ -1,0 +1,32 @@
+{% extends "_legal.html" %}
+{% block titulo %}Cancelamento e reembolso - Quizzify{% endblock %}
+{% block texto %}
+<h2>Cancelamento e reembolso</h2>
+<p class="text-xs text-slate-500 text-center">Última atualização: {{ atualizado }}</p>
+
+<h3>7 dias de garantia</h3>
+<p>Se você não gostar, pode desistir em até <b>7 dias corridos depois do pagamento</b> e receber <b>100% do valor de volta</b>,
+    sem precisar explicar o motivo. É o direito de arrependimento do Código de Defesa do Consumidor (art. 49).</p>
+
+<h3>Como pedir</h3>
+<ol class="list-decimal pl-5 space-y-1">
+    <li>Escreva para <a href="mailto:{{ email }}?subject=Cancelamento%20e%20reembolso">{{ email }}</a> a partir do e-mail
+        da sua conta, com o assunto <b>"Cancelamento e reembolso"</b>.</li>
+    <li>Confirmamos o pedido em até 2 dias úteis.</li>
+    <li>O valor volta pelo mesmo meio de pagamento: <b>Pix</b> para a conta que pagou, ou <b>estorno no cartão</b>.
+        O estorno no cartão pode aparecer em até 2 faturas, conforme a operadora.</li>
+</ol>
+<p>Depois do reembolso, o acesso para criar novos quizzes é encerrado.</p>
+
+<h3>Depois dos 7 dias</h3>
+<ul>
+    <li>Você pode deixar de usar quando quiser. Como <b>não há renovação automática</b>, não existe cobrança futura para cancelar.</li>
+    <li>O acesso continua até o fim do período já pago (30 dias no mensal, 365 no anual).</li>
+    <li>Não há reembolso proporcional depois dos 7 dias, salvo em caso de falha do serviço que impeça o uso.</li>
+</ul>
+
+<h3>Excluir a conta</h3>
+<p>Se quiser apagar a conta e os quizzes, peça por e-mail a <a href="mailto:{{ email }}">{{ email }}</a>.
+    Os registros de pagamento são guardados pelo prazo exigido pela lei fiscal, como explicado na
+    <a href="{{ url_for('pagina_privacidade') }}">Política de privacidade</a>.</p>
+{% endblock %}

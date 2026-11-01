@@ -1,0 +1,66 @@
+{% extends "_legal.html" %}
+{% block titulo %}Termos de uso - Quizzify{% endblock %}
+{% block texto %}
+<h2>Termos de uso</h2>
+<p class="text-xs text-slate-500 text-center">Última atualização: {{ atualizado }}</p>
+
+<p>Estes termos valem para quem usa o <b>Quizzify</b> ({{ dono }}), em <a href="{{ url_for('assine') }}">app.quizzify.com.br</a>.
+    Ao criar uma conta, você concorda com eles e com a <a href="{{ url_for('pagina_privacidade') }}">Política de privacidade</a>.</p>
+
+<h3>1. O serviço</h3>
+<p>O Quizzify transforma o material que você envia (fotos, PDF, Word, PowerPoint) em quizzes e flashcards com
+    inteligência artificial, com link para compartilhar e opção de baixar o arquivo.</p>
+
+<h3>2. Conta</h3>
+<ul>
+    <li>A conta é pessoal e para maiores de 18 anos. Você é responsável por manter a senha em segredo.</li>
+    <li>Informe um e-mail válido: é por ele que enviamos avisos e a recuperação de senha.</li>
+</ul>
+
+<h3>3. Teste grátis</h3>
+<p>O teste grátis permite criar <b>{{ cota }} quizzes em {{ horas }} horas</b>, sem cartão, uma vez por pessoa. Ao terminar,
+    o acesso para criar novos quizzes é pausado até a assinatura; o que você criou continua guardado. Criar várias contas para
+    repetir o teste não é permitido.</p>
+
+<h3>4. Planos e pagamento</h3>
+<ul>
+    <li>Plano mensal: R$ {{ mensal }} por 30 dias. Plano anual: R$ {{ anual }} por 365 dias (cartão em até 12x).</li>
+    <li>Pagamento por Pix ou cartão, processado pela InfinitePay. O acesso é liberado assim que o pagamento é confirmado.</li>
+    <li><b>Não há renovação automática:</b> nada é cobrado sem você pagar de novo. Avisamos por e-mail antes de vencer.
+        Ao renovar antes do vencimento, os dias novos são somados aos que faltam.</li>
+    <li>Cada conta pode gerar até {{ limite }} quizzes ou flashcards por dia, para manter o serviço rápido para todos.</li>
+</ul>
+
+<h3>5. Cancelamento e garantia</h3>
+<p>Você tem <b>7 dias de garantia</b> para desistir e receber o valor de volta. As regras completas estão em
+    <a href="{{ url_for('pagina_cancelamento') }}">Cancelamento e reembolso</a>.</p>
+
+<h3>6. Seu conteúdo</h3>
+<ul>
+    <li>O material que você envia e os quizzes gerados são seus; você pode usá-los e compartilhá-los livremente.</li>
+    <li>Envie apenas material que você tem direito de usar (aulas, anotações, materiais próprios ou de uso permitido).</li>
+    <li>Não envie conteúdo ilegal, ofensivo ou com dados pessoais sensíveis de outras pessoas.</li>
+    <li>Quem tem o link de um quiz consegue abri-lo. Compartilhe com cuidado.</li>
+</ul>
+
+<h3>7. Inteligência artificial</h3>
+<p>As perguntas, respostas e explicações são criadas por inteligência artificial e <b>podem conter erros</b>.
+    Revise o quiz antes de aplicar com alunos ou usar para estudo. O Quizzify não substitui a orientação de um professor.</p>
+
+<h3>8. Uso proibido</h3>
+<p>Não é permitido tentar invadir ou sobrecarregar o serviço, revender o acesso, automatizar o uso em massa ou usar o
+    Quizzify para enviar spam. Nesses casos, podemos suspender a conta.</p>
+
+<h3>9. Disponibilidade e responsabilidade</h3>
+<p>Trabalhamos para manter o serviço sempre no ar, mas podem ocorrer interrupções para manutenção ou por falhas de
+    terceiros (internet, hospedagem, inteligência artificial). Respeitados os direitos do consumidor, o Quizzify não se
+    responsabiliza pelo uso que você faz do conteúdo gerado.</p>
+
+<h3>10. Mudanças nos termos</h3>
+<p>Podemos atualizar estes termos. Mudanças importantes serão avisadas por e-mail. Os preços de uma assinatura já paga
+    não mudam até o fim do período.</p>
+
+<h3>11. Lei e foro</h3>
+<p>Valem as leis brasileiras, incluindo o Código de Defesa do Consumidor. Eventuais disputas podem ser resolvidas no foro
+    do seu domicílio. Antes disso, fale com a gente: <a href="mailto:{{ email }}">{{ email }}</a>.</p>
+{% endblock %}

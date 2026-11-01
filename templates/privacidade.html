@@ -1,0 +1,83 @@
+{% extends "_legal.html" %}
+{% block titulo %}Política de privacidade - Quizzify{% endblock %}
+{% block texto %}
+<h2>Política de privacidade</h2>
+<p class="text-xs text-slate-500 text-center">Última atualização: {{ atualizado }}</p>
+
+<p>Esta política explica quais dados o <b>Quizzify</b> ({{ dono }}) coleta, para que usa e quais são os seus direitos,
+    conforme a Lei Geral de Proteção de Dados (Lei nº 13.709/2018, LGPD). Dúvidas ou pedidos:
+    <a href="mailto:{{ email }}">{{ email }}</a>.</p>
+
+<h3>1. Dados que coletamos</h3>
+<ul>
+    <li><b>Conta:</b> seu e-mail e a sua senha, que guardamos de forma criptografada (nem nós conseguimos ver).</li>
+    <li><b>Assinatura:</b> plano, datas de pagamento e validade. Os dados do cartão e do Pix são tratados pela InfinitePay;
+        o Quizzify não recebe nem guarda números de cartão.</li>
+    <li><b>Material enviado:</b> os arquivos e fotos que você envia são processados para gerar o quiz e não ficam guardados
+        depois disso.</li>
+    <li><b>Quizzes gerados:</b> o conteúdo criado fica salvo para aparecer em "Meus quizzes" e no link que você compartilha.</li>
+    <li><b>Uso e navegação:</b> endereço IP, tipo de aparelho, páginas visitadas e de qual link ou anúncio você veio
+        (ex.: <code>?origem=instagram</code>), para segurança, limites de uso e medir a divulgação.</li>
+</ul>
+
+<h3>2. Para que usamos</h3>
+<ul>
+    <li>Criar e manter a sua conta e liberar o acesso conforme o plano (execução de contrato).</li>
+    <li>Gerar quizzes e flashcards a partir do seu material (execução de contrato).</li>
+    <li>Enviar e-mails do serviço: boas-vindas, fim do teste grátis, vencimento da assinatura e nova senha (execução de contrato).</li>
+    <li>Proteger o serviço contra abusos e fraudes (legítimo interesse).</li>
+    <li>Medir e melhorar nossos anúncios (legítimo interesse), como explicado no item 4.</li>
+    <li>Cumprir obrigações legais e fiscais, como guardar registros de pagamento (obrigação legal).</li>
+</ul>
+
+<h3>3. Com quem compartilhamos</h3>
+<p>Só com empresas que nos ajudam a prestar o serviço, e apenas o necessário:</p>
+<ul>
+    <li><b>Google (Gemini e Firebase):</b> inteligência artificial que lê o material para gerar as perguntas, e armazenamento dos quizzes.</li>
+    <li><b>Render:</b> hospedagem do aplicativo.</li>
+    <li><b>InfinitePay:</b> processamento dos pagamentos.</li>
+    <li><b>Brevo:</b> envio dos e-mails do serviço.</li>
+    <li><b>Meta (Facebook e Instagram):</b> medição de anúncios, como explicado abaixo.</li>
+</ul>
+<p>Alguns desses serviços guardam dados em servidores fora do Brasil. Nesses casos, a transferência segue as garantias
+    previstas na LGPD. Não vendemos os seus dados.</p>
+
+<h3>4. Cookies, Pixel da Meta e anúncios</h3>
+<p>Usamos cookies e armazenamento do navegador para manter você conectado, lembrar preferências (como o tema de cores)
+    e saber de qual link você veio. Também usamos o <b>Pixel da Meta</b> para medir visitas, cadastros e compras vindos
+    dos nossos anúncios. Quando você informa o e-mail no cadastro, ele pode ser enviado à Meta de forma
+    <b>criptografada</b> (embaralhada antes de sair do seu aparelho), apenas para associar a conversão ao anúncio.
+    Você pode limitar isso nas configurações de anúncios do Facebook e do Instagram e bloqueando cookies no navegador.</p>
+
+<h3>5. Quizzes compartilhados e alunos</h3>
+<p>O link de um quiz pode ser aberto por <b>qualquer pessoa que o receba</b>, sem login. Por isso, não envie material com
+    dados pessoais sensíveis (como notas, documentos ou informações de saúde de alunos). Quem responde a um quiz pelo link
+    não cria conta e não informa dados pessoais ao Quizzify. Se você é professor ou responsável, é você quem escolhe o
+    material enviado e com quem compartilha o link.</p>
+
+<h3>6. Por quanto tempo guardamos</h3>
+<ul>
+    <li>Dados da conta e quizzes: enquanto a conta existir. Você pode pedir a exclusão a qualquer momento.</li>
+    <li>Registros de pagamento: pelo prazo exigido pela legislação fiscal (em geral, 5 anos).</li>
+    <li>Registros de acesso: pelo prazo exigido pelo Marco Civil da Internet (6 meses).</li>
+</ul>
+
+<h3>7. Seus direitos</h3>
+<p>Pela LGPD, você pode pedir a qualquer momento: confirmação de que tratamos seus dados, acesso a eles, correção,
+    exclusão, portabilidade, informação sobre com quem compartilhamos e revogação de consentimentos. Basta escrever para
+    <a href="mailto:{{ email }}">{{ email }}</a> a partir do e-mail da conta. Respondemos em até 15 dias. Você também pode
+    reclamar à Autoridade Nacional de Proteção de Dados (ANPD).</p>
+
+<h3>8. Segurança</h3>
+<p>Usamos conexão criptografada (HTTPS), senhas protegidas por criptografia e acesso restrito aos dados. Nenhum sistema é
+    100% seguro; se houver um incidente que possa trazer risco a você, avisaremos e comunicaremos a ANPD, como manda a lei.</p>
+
+<h3>9. Menores de idade</h3>
+<p>A conta no Quizzify é para maiores de 18 anos (professores, pais e estudantes adultos). Estudantes menores podem
+    responder aos quizzes pelos links enviados por professores ou responsáveis, sem criar conta.</p>
+
+<h3>10. Mudanças nesta política</h3>
+<p>Podemos atualizar esta política. A data no topo mostra a última versão; mudanças importantes serão avisadas por e-mail.</p>
+
+<p><b>Encarregado de dados (LGPD):</b> atendimento pelo e-mail <a href="mailto:{{ email }}">{{ email }}</a>.</p>
+{% endblock %}

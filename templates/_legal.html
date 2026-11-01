@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{#- Base das páginas legais: texto corrido, legível no celular. #}
+{% block conteudo %}
+<article class="legal space-y-3 text-sm leading-relaxed text-slate-300">
+    <style>
+        .legal h2 { font-size: 1.25rem; font-weight: 800; color: rgb(var(--s100)); text-align: center; margin-bottom: .25rem; }
+        .legal h3 { font-size: 1rem; font-weight: 800; color: rgb(var(--s100)); margin-top: 1.25rem; }
+        .legal ul { list-style: disc; padding-left: 1.25rem; }
+        .legal li { margin-top: .25rem; }
+        .legal a { text-decoration: underline; }
+        .legal b { color: rgb(var(--s200)); }
+    </style>
+    {% block texto %}{% endblock %}
+    <p class="text-xs text-slate-500 pt-4">Veja também:
+        <a href="{{ url_for('pagina_termos') }}">Termos de uso</a> ·
+        <a href="{{ url_for('pagina_privacidade') }}">Política de privacidade</a> ·
+        <a href="{{ url_for('pagina_cancelamento') }}">Cancelamento e reembolso</a></p>
+</article>
+{% endblock %}
