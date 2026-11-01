@@ -1101,6 +1101,7 @@ def cadastro():
         registrar_tentativa(_cadastros, ip, agora)
         entrar_na_sessao(email, nova)
         if gratis:
+            enviar_inicio_teste(email, dict(nova))
             flash(f"Seu teste grátis começou! Você tem {TESTE_GRATIS_QUIZZES} quizzes para criar nas próximas "
                   f"{TESTE_GRATIS_HORAS} horas. 🎉", "ok")
             return redirect(url_for("index"))
@@ -1304,6 +1305,38 @@ está liberado até <b>{validade}</b>.</p>
              f"Esqueceu a senha? {URL_APP}/esqueci-senha")
     return montar_email("Seu acesso ao Quizzify está liberado 🎉", "🎉 Bem-vindo(a) ao Quizzify!",
                         miolo, "Acessar o Quizzify", URL_APP + "/", texto, depois)
+
+
+def email_inicio_teste(email, conta):
+    """Logo após o cadastro no teste grátis: acesso, prazo e como criar o primeiro quiz."""
+    p = 'style="font-size:15px;line-height:1.5"'
+    fim = data_hora(conta["expira_em"]); cota = conta.get("teste_cota") or TESTE_GRATIS_QUIZZES
+    miolo = (f"<p {p}>Seu teste grátis está ativo: você pode criar <b>{cota} quizzes</b> até <b>{fim}</b>, sem cartão.</p>"
+             f"<p {p}><b>Para entrar:</b> acesse <a href=\"{URL_APP}\">app.quizzify.com.br</a> com <b>{email}</b> e a senha que você criou.</p>")
+    depois = (f"<p {p}><b>Seu primeiro quiz em 1 minuto:</b></p><ol {p}>"
+              "<li>Tire uma foto do caderno ou do livro (ou use um PDF, Word ou PowerPoint).</li>"
+              "<li>Toque em <b>Escolher arquivos ou fotos</b> e depois em <b>Gerar com IA</b>.</li>"
+              "<li>Copie o link e mande para os alunos, ou responda você mesmo.</li></ol>"
+              f"<p style=\"font-size:13px;color:#64748b\">Esqueceu a senha? Na tela de entrar, toque em "
+              f"<a href=\"{URL_APP}/esqueci-senha\" style=\"color:#64748b\">Esqueci minha senha</a>.</p>")
+    texto = (f"Seu teste grátis está ativo: {cota} quizzes até {fim}, sem cartão.\n\n"
+             f"Para entrar: {URL_APP} com {email} e a senha que você criou.\n\n"
+             "Seu primeiro quiz em 1 minuto:\n1. Tire uma foto do caderno ou do livro (ou use um PDF).\n"
+             "2. Toque em Escolher arquivos ou fotos e em Gerar com IA.\n3. Copie o link e mande para os alunos.\n\n"
+             f"Esqueceu a senha? {URL_APP}/esqueci-senha")
+    return montar_email("Seu teste grátis do Quizzify começou 🎁", "🎁 Seu teste grátis começou!",
+                        miolo, "Criar meu primeiro quiz", URL_APP + "/", texto, depois)
+
+
+def enviar_inicio_teste(email, conta):
+    if "@" not in email or not os.environ.get("BREVO_API_KEY") or not EMAIL_REMETENTE:
+        return
+    def tarefa():
+        try:
+            enviar_email(email, *email_inicio_teste(email, conta), tag="inicio-do-teste")
+        except Exception:
+            log.exception("Falha ao enviar início do teste para %s", email)
+    threading.Thread(target=tarefa, daemon=True).start()
 
 
 def enviar_boas_vindas(email, conta, nome=None):
@@ -1559,7 +1592,10 @@ def tarefa_lembretes():
         exemplo = {"pago_ate": time.time() + 3 * DIA, "plano": "mensal"}
         try:
             tipo = request.args.get("tipo", "")
-            if tipo.startswith(("teste_antes", "teste_fim")):     # &tipo=teste_antes | teste_fim (+ _sem_uso)
+            if tipo == "teste_inicio":
+                exemplo = {"expira_em": time.time() + TESTE_GRATIS_HORAS * 3600, "teste_cota": TESTE_GRATIS_QUIZZES}
+                enviar_email(teste, *email_inicio_teste(teste, exemplo), tag="inicio-do-teste")
+            elif tipo.startswith(("teste_antes", "teste_fim")):     # &tipo=teste_antes | teste_fim (+ _sem_uso)
                 sem_uso = tipo.endswith("_sem_uso"); etapa = tipo.replace("_sem_uso", "")
                 exemplo = {"expira_em": time.time() + (20 * 3600 if etapa == "teste_antes" else -3600), "teste_site": True,
                            "teste_cota": 3, "teste_usados": 0 if sem_uso else 2, "teste_horas": 48}
