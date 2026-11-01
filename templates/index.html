@@ -80,6 +80,13 @@
     <iframe id="preview" title="Pré-visualização" class="w-full h-[640px] rounded-xl border border-slate-700 bg-slate-900" sandbox="allow-scripts"></iframe>
 </section>
 
+{% if video_tutorial and not recentes %}
+<a href="{{ video_tutorial }}" target="_blank" rel="noopener" class="mt-8 flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-900 p-3 hover:border-lima">
+    <img src="{{ url_for('static', filename='img/video-tutorial.jpg') }}" alt="" class="w-28 rounded-lg">
+    <span class="text-sm"><b>▶ Primeira vez aqui?</b><br><span class="text-slate-400">Veja em 6 minutos como usar tudo.</span></span>
+</a>
+{% endif %}
+
 <!-- Últimos quizzes da conta (o histórico completo fica em "Meus quizzes") -->
 <section id="recentes" class="mt-8 space-y-3 {{ '' if recentes else 'hidden' }}">
     <div class="flex justify-between items-baseline">

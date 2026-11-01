@@ -1264,6 +1264,21 @@ Dúvidas? Responda este e-mail ou escreva para <a href="mailto:{EMAIL_SUPORTE}" 
     return assunto, corpo, texto_simples
 
 
+VIDEO_TUTORIAL = os.environ.get("VIDEO_TUTORIAL", "https://youtu.be/4tOd9uzOfA8").strip()
+
+
+def bloco_video():
+    """Miniatura clicável do tutorial (imagem servida pelo app: abre em qualquer leitor de e-mail)."""
+    if not VIDEO_TUTORIAL:
+        return "", ""
+    html = (f'<p style="text-align:center;margin:24px 0 8px"><a href="{VIDEO_TUTORIAL}">'
+            f'<img src="{URL_APP}/static/img/video-tutorial.jpg" width="432" alt="Assista ao tutorial do Quizzify" '
+            'style="max-width:100%;border-radius:12px;display:block;margin:auto;border:0"></a></p>'
+            f'<p style="text-align:center;font-size:14px;margin:0 0 16px"><a href="{VIDEO_TUTORIAL}" style="color:#5920AB;font-weight:bold">'
+            '▶ Assista: como usar o Quizzify em 6 minutos</a></p>')
+    return html, f"Assista ao tutorial (6 min): {VIDEO_TUTORIAL}"
+
+
 def montar_email(assunto, titulo, miolo_html, botao, link, miolo_texto, depois_html=""):
     """Layout comum dos e-mails (HTML simples, funciona em todos os leitores)."""
     corpo = f"""<!DOCTYPE html>
@@ -1292,7 +1307,7 @@ def email_boas_vindas(email, conta):
 está liberado até <b>{validade}</b>.</p>
 <p {p}><b>Para entrar:</b> acesse <a href="{URL_APP}">app.quizzify.com.br</a> com
 <b>{email}</b> e a sua senha.</p>"""
-    depois = f"""<p {p}><b>📲 Quer o Quizzify na tela do celular?</b> (opcional — funciona igual no navegador)<br>
+    depois = bloco_video()[0] + f"""<p {p}><b>📲 Quer o Quizzify na tela do celular?</b> (opcional — funciona igual no navegador)<br>
 <b>Android:</b> abra o link no <b>Chrome</b>, toque em <b>⋮</b> e em <b>Instalar app</b>.<br>
 <b>iPhone:</b> abra no <b>Safari</b>, toque em <b>Compartilhar</b> (□↑) e em <b>Adicionar à Tela de Início</b>.</p>
 <p style="font-size:13px;color:#64748b">Esqueceu a senha? Na tela de entrar, toque em
@@ -1302,7 +1317,7 @@ está liberado até <b>{validade}</b>.</p>
              "Quer o Quizzify na tela do celular? (opcional)\n"
              "Android: abra o link no Chrome, toque em ⋮ e em Instalar app.\n"
              "iPhone: abra no Safari, toque em Compartilhar e em Adicionar à Tela de Início.\n\n"
-             f"Esqueceu a senha? {URL_APP}/esqueci-senha")
+             f"Esqueceu a senha? {URL_APP}/esqueci-senha\n\n" + bloco_video()[1])
     return montar_email("Seu acesso ao Quizzify está liberado 🎉", "🎉 Bem-vindo(a) ao Quizzify!",
                         miolo, "Acessar o Quizzify", URL_APP + "/", texto, depois)
 
@@ -1313,7 +1328,8 @@ def email_inicio_teste(email, conta):
     fim = data_hora(conta["expira_em"]); cota = conta.get("teste_cota") or TESTE_GRATIS_QUIZZES
     miolo = (f"<p {p}>Seu teste grátis está ativo: você pode criar <b>{cota} quizzes</b> até <b>{fim}</b>, sem cartão.</p>"
              f"<p {p}><b>Para entrar:</b> acesse <a href=\"{URL_APP}\">app.quizzify.com.br</a> com <b>{email}</b> e a senha que você criou.</p>")
-    depois = (f"<p {p}><b>Seu primeiro quiz em 1 minuto:</b></p><ol {p}>"
+    video, video_txt = bloco_video()
+    depois = (video + f"<p {p}><b>Seu primeiro quiz em 1 minuto:</b></p><ol {p}>"
               "<li>Tire uma foto do caderno ou do livro (ou use um PDF, Word ou PowerPoint).</li>"
               "<li>Toque em <b>Escolher arquivos ou fotos</b> e depois em <b>Gerar com IA</b>.</li>"
               "<li>Copie o link e mande para os alunos, ou responda você mesmo.</li></ol>"
@@ -1323,7 +1339,7 @@ def email_inicio_teste(email, conta):
              f"Para entrar: {URL_APP} com {email} e a senha que você criou.\n\n"
              "Seu primeiro quiz em 1 minuto:\n1. Tire uma foto do caderno ou do livro (ou use um PDF).\n"
              "2. Toque em Escolher arquivos ou fotos e em Gerar com IA.\n3. Copie o link e mande para os alunos.\n\n"
-             f"Esqueceu a senha? {URL_APP}/esqueci-senha")
+             f"Esqueceu a senha? {URL_APP}/esqueci-senha\n\n" + bloco_video()[1])
     return montar_email("Seu teste grátis do Quizzify começou 🎁", "🎁 Seu teste grátis começou!",
                         miolo, "Criar meu primeiro quiz", URL_APP + "/", texto, depois)
 
@@ -1494,8 +1510,8 @@ def email_teste(etapa, nome, conta, total_quizzes):
         assunto = "Você ainda não criou seu primeiro quiz no Quizzify"
         titulo = "📸 Seu primeiro quiz leva 1 minuto"
         texto = f"Seu teste termina em <b>{data_hora(conta['expira_em'])}</b>.{restam} Veja como é rápido:"
-        miolo = f"<p {p}>{texto}</p>{passos}"
-        miolo_txt = f"{re.sub(r'<[^>]+>', '', texto)}\n\n{passos_txt}"
+        miolo = f"<p {p}>{texto}</p>{passos}{bloco_video()[0]}"
+        miolo_txt = f"{re.sub(r'<[^>]+>', '', texto)}\n\n{passos_txt}\n\n{bloco_video()[1]}"
         return montar_email(assunto, titulo, miolo, "Criar meu primeiro quiz", URL_APP + "/", miolo_txt, entrar)
     if etapa != "teste_antes" and not usados and conta.get("teste_site") and not conta.get("teste_estendido"):
         token = _assinador_mais24().dumps({"u": nome})
@@ -1503,8 +1519,8 @@ def email_teste(etapa, nome, conta, total_quizzes):
         titulo = "⏰ Ganhe mais 24 horas grátis"
         texto = ("Vimos que você não chegou a criar nenhum quiz. Sem problema: toque no botão e liberamos "
                  "<b>mais 24 horas</b> para você testar com calma.")
-        miolo = f"<p {p}>{texto}</p>{passos}"
-        miolo_txt = f"{re.sub(r'<[^>]+>', '', texto)}\n\n{passos_txt}"
+        miolo = f"<p {p}>{texto}</p>{passos}{bloco_video()[0]}"
+        miolo_txt = f"{re.sub(r'<[^>]+>', '', texto)}\n\n{passos_txt}\n\n{bloco_video()[1]}"
         return montar_email(assunto, titulo, miolo, "Quero mais 24 horas", f"{URL_APP}/teste/mais-24h/{token}", miolo_txt, entrar)
 
     guardados = (f" Seus <b>{total_quizzes} quiz{'zes' if total_quizzes != 1 else ''}</b> continuam guardados."
@@ -1751,6 +1767,11 @@ def divulgacao_js():
 
 
 # ---------- Teste grátis: aviso no topo e e-mail para os avisos ----------
+@app.context_processor
+def dados_video():
+    return {"video_tutorial": VIDEO_TUTORIAL}
+
+
 @app.context_processor
 def dados_teste():
     expira, usuario = session.get("expira_em"), session.get("usuario")

@@ -74,6 +74,7 @@
                 <span>👤 {{ session.usuario }}</span>
                 {% if session.admin %}<a href="{{ url_for('admin') }}" class="hover:text-white underline">Admin</a>{% endif %}
                 <a href="{{ url_for('meus_quizzes') }}" class="hover:text-white underline">Meus quizzes</a>
+                {% if video_tutorial %}<a href="{{ video_tutorial }}" target="_blank" rel="noopener" class="hover:text-white underline">Como usar</a>{% endif %}
                 {% if session.assinante %}<a href="{{ url_for('assinatura') }}" class="hover:text-white underline">Assinatura</a>{% endif %}
                 <a href="{{ url_for('trocar_senha') }}" class="hover:text-white underline">Senha</a>
                 <form method="post" action="{{ url_for('logout') }}" class="inline">
