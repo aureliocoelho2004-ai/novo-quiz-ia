@@ -1103,6 +1103,7 @@ def cadastro():
         pixel("CompleteRegistration", content_name="teste_gratis" if gratis else (plano_id or "conta"))
         if gratis:
             pixel("StartTrial", value=0, currency="BRL")
+            pixel("Lead", content_name="teste_gratis")     # objetivo "Cadastros/Leads" da Meta otimiza por este evento
             enviar_inicio_teste(email, dict(nova))
             flash(f"Seu teste grátis começou! Você tem {TESTE_GRATIS_QUIZZES} quizzes para criar nas próximas "
                   f"{TESTE_GRATIS_HORAS} horas. 🎉", "ok")
