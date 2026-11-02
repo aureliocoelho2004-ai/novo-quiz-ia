@@ -1070,8 +1070,6 @@ def cadastro():
         flash("Informe um e-mail válido.", "erro")
     elif not senha_valida(senha):
         flash("A senha deve ter pelo menos 8 caracteres.", "erro")
-    elif senha != request.form.get("confirmar", ""):
-        flash("A confirmação não coincide com a senha.", "erro")
     else:
         nova = {"senha": generate_password_hash(senha), "admin": False, "trocar_senha": False,
                 "assinante": True, "pago_ate": 0, "criado_em": agora, "origem": origem_atual()}
