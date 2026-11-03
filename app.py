@@ -1500,6 +1500,8 @@ def etapa_teste(conta, agora):
     if 0 < restante <= janela:
         if horas <= 24:
             return None                     # teste de 24h: só o aviso no app e o e-mail do fim
+        if conta.get("cota_avisada"):
+            return None                     # já recebeu o e-mail de cota esgotada
         etapa = "teste_antes"
     elif -JANELA_VENCIDA_DIAS * DIA < restante <= 0:
         etapa = "teste_fim"
@@ -1570,6 +1572,63 @@ def email_teste(etapa, nome, conta, total_quizzes):
     return montar_email(assunto, titulo, miolo, botao, planos, miolo_txt, entrar)
 
 
+def cota_esgotada(conta):
+    """Teste grátis com cota usada até o fim, ainda sem assinatura paga."""
+    cota = conta.get("teste_cota")
+    return (cota is not None and conta.get("expira_em") and not conta.get("admin")
+            and (conta.get("teste_usados") or 0) >= cota and (conta.get("pago_ate") or 0) <= time.time())
+
+
+def email_cota_esgotada(nome, conta):
+    """Logo que a pessoa usa o último quiz grátis: mensagem pessoal, do fundador, com os planos."""
+    cota = conta.get("teste_cota") or TESTE_GRATIS_QUIZZES
+    anual = PLANOS["anual"]["centavos"]
+    por_dia = f"R$ {anual / 365 / 100:.2f}".replace(".", ",")
+    p = 'style="font-size:15px;line-height:1.5"'
+    miolo = (f"<p {p}>Oi! Tudo bem?</p>"
+             f"<p {p}>Sou o Aurélio, do Quizzify. Vi que você usou os <b>{cota} quizzes do teste grátis</b> rapidinho "
+             "e fiquei feliz que tenha gostado!</p>"
+             f"<p {p}>Queria saber: <b>o que achou dos quizzes?</b> Ficou alguma dúvida ou tem algo que eu possa melhorar? "
+             "É só responder este e-mail, eu leio todos.</p>"
+             f"<p {p}>Se quiser continuar criando, no plano anual sai por menos de <b>{por_dia} por dia</b>, "
+             "com <b>7 dias de garantia</b>. Tudo o que você já criou continua guardado.</p>")
+    depois = (f'<p {p}>Abraço,<br><b>Aurélio</b><br>Quizzify</p>'
+              f'<p style="font-size:13px;color:#64748b">Para entrar, use <b>{nome}</b> e a sua senha.</p>')
+    texto = (f"Oi! Tudo bem?\n\nSou o Aurélio, do Quizzify. Vi que você usou os {cota} quizzes do teste grátis rapidinho "
+             "e fiquei feliz que tenha gostado!\n\nQueria saber: o que achou dos quizzes? Ficou alguma dúvida ou tem algo "
+             "que eu possa melhorar? É só responder este e-mail, eu leio todos.\n\n"
+             f"Se quiser continuar criando, no plano anual sai por menos de {por_dia} por dia, com 7 dias de garantia. "
+             "Tudo o que você já criou continua guardado.\n\nAbraço,\nAurélio - Quizzify")
+    return montar_email(f"Vi que você já criou seus {cota} quizzes 👏", "Você usou seus quizzes grátis! 🎉",
+                        miolo, "Continuar criando", f"{URL_APP}/assinatura?plano=anual", texto, depois)
+
+
+def enviar_cota_esgotada(nome):
+    """Envia (uma vez por conta) o e-mail de cota esgotada e marca a conta. Devolve True se enviou."""
+    usuarios = carregar_usuarios()
+    conta = usuarios.get(nome) or {}
+    destino = email_da_conta(nome, conta)
+    if not destino or conta.get("cota_avisada") or not cota_esgotada(conta):
+        return False
+    enviar_email(destino, *email_cota_esgotada(nome, conta), tag="cota-esgotada")
+
+    def marcar(usuarios):
+        c = usuarios.get(nome)
+        if c: c["cota_avisada"] = True
+        return c
+    alterar_usuarios(marcar)
+    return True
+
+
+def _enviar_cota_em_segundo_plano(nome):
+    def tarefa():
+        try:
+            enviar_cota_esgotada(nome)
+        except Exception:
+            log.exception("Falha ao enviar e-mail de cota esgotada para %s", nome)
+    threading.Thread(target=tarefa, daemon=True).start()
+
+
 @app.get("/teste/mais-24h/<token>")
 def teste_mais_24h(token):
     """Link do e-mail para quem não usou o teste: mais 24 horas, uma única vez."""
@@ -1635,7 +1694,10 @@ def tarefa_lembretes():
         exemplo = {"pago_ate": time.time() + 3 * DIA, "plano": "mensal"}
         try:
             tipo = request.args.get("tipo", "")
-            if tipo == "teste_inicio":
+            if tipo == "cota":
+                exemplo = {"expira_em": time.time() + DIA, "teste_cota": TESTE_GRATIS_QUIZZES, "teste_usados": TESTE_GRATIS_QUIZZES}
+                enviar_email(teste, *email_cota_esgotada(teste, exemplo), tag="cota-esgotada")
+            elif tipo == "teste_inicio":
                 exemplo = {"expira_em": time.time() + TESTE_GRATIS_HORAS * 3600, "teste_cota": TESTE_GRATIS_QUIZZES}
                 enviar_email(teste, *email_inicio_teste(teste, exemplo), tag="inicio-do-teste")
             elif tipo.startswith(("teste_antes", "teste_fim")):     # &tipo=teste_antes | teste_fim (+ _sem_uso)
@@ -1658,10 +1720,18 @@ def tarefa_lembretes():
     except FalhaUsuarios:
         return jsonify(erro="Falha ao ler utilizadores"), 503
 
-    agora, enviados, enviados_teste, falhas = time.time(), [], [], 0
+    agora, enviados, enviados_teste, falhas, enviados_cota = time.time(), [], [], 0, 0
     for nome, conta in usuarios.items():
         destino = email_da_conta(nome, conta)
         if not destino:
+            continue
+        if cota_esgotada(conta) and not conta.get("cota_avisada") and agora - (conta.get("expira_em") or 0) < JANELA_VENCIDA_DIAS * DIA:
+            try:
+                if enviar_cota_esgotada(nome):
+                    enviados_cota += 1
+            except Exception:
+                log.exception("Falha ao enviar e-mail de cota esgotada para %s", nome)
+                falhas += 1
             continue
         if (etapa := etapa_teste(conta, agora)):
             try:
@@ -1710,7 +1780,7 @@ def tarefa_lembretes():
         except Exception:
             log.exception("Lembretes enviados mas não marcados; podem repetir amanhã")
     log.info("Lembretes: %s enviados, %s avisos de teste, %s falhas", len(enviados), len(enviados_teste), falhas)
-    return jsonify(enviados=len(enviados), avisos_teste=len(enviados_teste), falhas=falhas)
+    return jsonify(enviados=len(enviados), avisos_teste=len(enviados_teste), cota_esgotada=enviados_cota, falhas=falhas)
 
 
 @app.context_processor
@@ -2266,6 +2336,8 @@ def gerar():
             try:
                 c = alterar_usuarios(gastar)
                 if c: session["teste_usados"] = c["teste_usados"]
+                if c and cota_esgotada(c) and not c.get("cota_avisada"):
+                    _enviar_cota_em_segundo_plano(usuario)
             except Exception:
                 log.exception("Falha ao contar quiz do teste de %s", usuario)
         item = None
