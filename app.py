@@ -1048,13 +1048,36 @@ def plano_escolhido():
     return plano if plano in PLANOS else None
 
 
+# Textos da página de cadastro por público (?p=concursos|pais nos links dos anúncios)
+PUBLICOS = {
+    "concursos": {
+        "titulo": "Seu PDF do cursinho vira questões em 1 minuto",
+        "sub": "Pare de só ler e reler. Treine com questões no estilo da prova, com gabarito comentado.",
+        "itens": ["📄 Envie o PDF, a apostila ou a foto do resumo",
+                  "✅ Questões de múltipla escolha com explicação",
+                  "🧠 Flashcards para revisar em qualquer lugar",
+                  "🔁 Refaça só as que você errou"],
+    },
+    "pais": {
+        "titulo": "O caderno do seu filho vira quiz em 1 minuto",
+        "sub": "Reler não fixa a matéria. Praticar fixa. Ele responde no celular e aprende com cada erro.",
+        "itens": ["📸 Tire uma foto do caderno ou do livro",
+                  "✅ Quiz com correção e explicação na hora",
+                  "🧠 Flashcards para memorizar antes da prova",
+                  "📱 Funciona no celular, sem instalar nada"],
+    },
+}
+
+
 @app.route("/cadastro", methods=["GET", "POST"])
 def cadastro():
     plano_id = plano_escolhido()
     gratis = request.values.get("teste") == "1" and not plano_id
     if session.get("usuario"):
         return redirect(url_for("assinatura", plano=plano_id) if plano_id else url_for("index"))
-    ctx = dict(plano_id=plano_id, planos=PLANOS, gratis=gratis, horas=TESTE_GRATIS_HORAS, cota=TESTE_GRATIS_QUIZZES)
+    publico_id = request.values.get("p", "") if request.values.get("p", "") in PUBLICOS else ""
+    ctx = dict(plano_id=plano_id, planos=PLANOS, gratis=gratis, horas=TESTE_GRATIS_HORAS, cota=TESTE_GRATIS_QUIZZES,
+               publico_id=publico_id, publico=PUBLICOS.get(publico_id))
     if request.method == "GET":
         return render_template("cadastro.html", **ctx)
 
