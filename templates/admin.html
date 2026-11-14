@@ -88,6 +88,21 @@
     </div>
     {% endif %}
 
+    <form method="post" class="space-y-3 bg-slate-900 p-4 rounded-xl border border-slate-700"
+          onsubmit="return confirm('Renovar o teste e enviar o e-mail para essas pessoas?')">
+        <input type="hidden" name="acao" value="novo_prazo">
+        <h3 class="font-semibold">🔁 Dar novo prazo de teste</h3>
+        <p class="text-xs text-slate-400">Cole os e-mails (um por linha ou separados por vírgula). Cada pessoa ganha um teste novo
+            com a mesma cota e recebe um e-mail pessoal seu, com o passo a passo e o vídeo. Quem já pagou é ignorado.</p>
+        <textarea name="emails" rows="4" required class="w-full rounded-xl bg-slate-800 border border-slate-600 p-2 text-sm"
+                  placeholder="fulano@gmail.com, ciclano@gmail.com">{{ request.args.get('emails', '') }}</textarea>
+        <label class="flex items-center gap-2 text-sm">Novo prazo:
+            <select name="dias" class="rounded-lg bg-slate-800 border border-slate-600 p-1.5">
+                {% for d in [3, 5, 7] %}<option value="{{ d }}" {{ 'selected' if d == 5 }}>{{ d }} dias</option>{% endfor %}
+            </select></label>
+        <button class="w-full rounded-xl bg-roxo text-white font-bold py-3">Renovar e enviar e-mail</button>
+    </form>
+
     {% if divulgacao %}
     <form method="post" class="space-y-3 bg-slate-900 p-4 rounded-xl border border-slate-700">
         <input type="hidden" name="acao" value="divulgacao">

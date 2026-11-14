@@ -990,6 +990,37 @@ def admin():
             expira = max(time.time(), conta.get("expira_em") or 0) + 24 * 3600
             conta["expira_em"] = expira
             flash(f"Acesso de '{nome}' prolongado até {data_hora(expira)}.", "ok")
+        elif acao == "novo_prazo":
+            try:
+                dias = min(14, max(1, int(request.form.get("dias", 5))))
+            except ValueError:
+                dias = 5
+            pedidos = {e.strip().lower() for e in re.split(r"[\s,;]+", request.form.get("emails", "")) if e.strip()}
+            agora, renovados, ignorados, enviar = time.time(), [], [], []
+            for nome_conta in sorted(pedidos):
+                conta = usuarios.get(nome_conta)
+                if (not conta or conta.get("admin") or conta.get("pago_ate", 0) > agora
+                        or not (conta.get("expira_em") or conta.get("teste_acabou_em"))):
+                    ignorados.append(nome_conta)
+                    continue
+                conta.pop("assinante", None); conta.pop("teste_acabou_em", None)
+                conta.update(expira_em=agora + dias * DIA, teste_horas=dias * 24, novo_prazo_em=agora)
+                conta.setdefault("teste_cota", TESTE_GRATIS_QUIZZES)
+                renovados.append(nome_conta)
+                destino = email_da_conta(nome_conta, conta)
+                if destino:
+                    enviar.append((destino, dict(conta)))
+            try:
+                salvar_usuarios(usuarios)
+            except Exception:
+                log.exception("Falha ao guardar novos prazos")
+                flash("Não foi possível guardar as alterações no Firebase. Nada foi enviado.", "erro")
+                return redirect(url_for("admin"))
+            enviar_novo_prazo(enviar)
+            flash(f"{len(renovados)} teste(s) renovado(s) por {dias} dias e e-mail enviado."
+                  + (f" Ignorados (não encontrados, já pagantes ou sem teste): {', '.join(ignorados)}." if ignorados else ""),
+                  "ok" if renovados else "erro")
+            return redirect(url_for("admin"))
         elif acao == "liberar30" and usuarios.get(nome, {}).get("assinante"):
             conta = usuarios[nome]
             conta["pago_ate"] = max(time.time(), conta.get("pago_ate", 0)) + 30 * DIA
@@ -1402,6 +1433,46 @@ def enviar_inicio_teste(email, conta):
             enviar_email(email, *email_inicio_teste(email, conta), tag="inicio-do-teste")
         except Exception:
             log.exception("Falha ao enviar início do teste para %s", email)
+    threading.Thread(target=tarefa, daemon=True).start()
+
+
+def email_novo_prazo(email, conta):
+    """Teste renovado pelo admin para quem não chegou a usar: mensagem pessoal do fundador."""
+    p = 'style="font-size:15px;line-height:1.5"'
+    fim = data_hora(conta["expira_em"])
+    restam = max(0, (conta.get("teste_cota") or TESTE_GRATIS_QUIZZES) - (conta.get("teste_usados") or 0))
+    miolo = (f"<p {p}>Oi! Aqui é o Aurélio, criador do Quizzify. Sou professor e vi que você criou sua conta, "
+             "mas não chegou a gerar o seu primeiro quiz. Imagino que a correria não deixou. 🙂</p>"
+             f"<p {p}>Por isso <b>renovei o seu teste grátis</b>: você tem <b>{restam} quizzes</b> até <b>{fim}</b>, sem cartão.</p>"
+             f"<p {p}><b>Leva 1 minuto:</b> tire uma foto de uma página do livro ou do caderno (ou envie um PDF), "
+             "toque em <b>Gerar com IA</b> e veja o quiz pronto, com correção e explicação.</p>")
+    video, video_txt = bloco_video()
+    depois = (video + f"<p {p}>Para entrar, use <b>{email}</b> e a sua senha. Se tiver qualquer dificuldade, "
+              "é só responder este e-mail que eu mesmo te ajudo.</p>"
+              f"<p {p}>Abraço,<br><b>Aurélio</b><br>Quizzify</p>"
+              f"<p style=\"font-size:13px;color:#64748b\">Esqueceu a senha? Na tela de entrar, toque em "
+              f"<a href=\"{URL_APP}/esqueci-senha\" style=\"color:#64748b\">Esqueci minha senha</a>.</p>")
+    texto = ("Oi! Aqui é o Aurélio, criador do Quizzify. Sou professor e vi que você criou sua conta, mas não chegou "
+             "a gerar o seu primeiro quiz. Imagino que a correria não deixou.\n\n"
+             f"Por isso renovei o seu teste grátis: você tem {restam} quizzes até {fim}, sem cartão.\n\n"
+             "Leva 1 minuto: tire uma foto de uma página do livro ou do caderno (ou envie um PDF), toque em Gerar com IA "
+             "e veja o quiz pronto, com correção e explicação.\n\n"
+             f"Para entrar, use {email} e a sua senha. Qualquer dificuldade, responda este e-mail.\n\n"
+             f"Esqueceu a senha? {URL_APP}/esqueci-senha\n\n{video_txt}\n\nAbraço,\nAurélio - Quizzify")
+    return montar_email("Renovei o seu teste grátis do Quizzify 🎁", "🎁 Seu teste grátis foi renovado!",
+                        miolo, "Criar meu primeiro quiz", URL_APP + "/", texto, depois)
+
+
+def enviar_novo_prazo(lista):
+    """lista de (email, conta) — envia em segundo plano, um por um."""
+    if not lista or not os.environ.get("BREVO_API_KEY") or not EMAIL_REMETENTE:
+        return
+    def tarefa():
+        for email, conta in lista:
+            try:
+                enviar_email(email, *email_novo_prazo(email, conta), tag="novo-prazo-teste")
+            except Exception:
+                log.exception("Falha ao enviar novo prazo para %s", email)
     threading.Thread(target=tarefa, daemon=True).start()
 
 
