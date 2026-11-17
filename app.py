@@ -1153,8 +1153,14 @@ def cadastro():
         if publico_id:
             extras["publico"] = publico_id
         zap = normalizar_whatsapp(request.form.get("whatsapp"))
-        if zap and request.form.get("whatsapp_ok") == "1":     # só guarda com a autorização marcada
-            extras.update(whatsapp=zap, whatsapp_consentimento_em=agora)
+        avisos_ok = request.form.get("whatsapp_ok") == "1"
+        ofertas_ok = request.form.get("ofertas_ok") == "1"
+        if zap and (avisos_ok or ofertas_ok):                  # só guarda com alguma autorização marcada
+            extras["whatsapp"] = zap
+            if avisos_ok:
+                extras["whatsapp_consentimento_em"] = agora
+            if ofertas_ok:
+                extras["ofertas_consentimento_em"] = agora
         if gratis:   # teste grátis pelo site: 3 quizzes em 48 horas, sem cartão
             nova = {"senha": nova["senha"], "admin": False, "trocar_senha": False, "criado_em": agora,
                     "origem": nova["origem"], "expira_em": agora + TESTE_GRATIS_HORAS * 3600,
@@ -2970,6 +2976,59 @@ def tarefa_ativacao():
             log.exception("Falha no e-mail de ativação (%s) para %s", etapa, nome)
             falhas += 1
     return jsonify(enviados=enviados, falhas=falhas)
+
+
+# ---- /admin: lista de contatos em planilha (CSV) ----
+def _status_conta(c, agora):
+    if c.get("admin"):
+        return "admin"
+    if (c.get("pago_ate") or 0) > agora:
+        return "assinante ativo"
+    if c.get("cancelado_em"):
+        return "cancelou"
+    if c.get("pago_ate"):
+        return "assinatura vencida"
+    if c.get("expira_em"):
+        return "em teste" if c["expira_em"] > agora else "teste expirado"
+    if c.get("teste_acabou_em"):
+        return "teste acabou sem assinar"
+    return "sem assinatura"
+
+
+@app.get("/admin/contatos.csv")
+@admin_obrigatorio
+def exportar_contatos():
+    """Planilha de contatos. ?formato=meta gera o arquivo para público personalizado da Meta
+    (e-mail de todos; telefone só de quem autorizou ofertas)."""
+    import csv
+    agora, usuarios = time.time(), carregar_usuarios()
+    buf = io.StringIO()
+    meta = request.args.get("formato") == "meta"
+    escritor = csv.writer(buf, delimiter="," if meta else ";")      # ";" abre em colunas no Excel em português
+    data = lambda ts: datetime.fromtimestamp(ts, FUSO_BRASIL).strftime("%d/%m/%Y %H:%M") if ts else ""
+    if meta:
+        escritor.writerow(["email", "phone", "country"])
+    else:
+        escritor.writerow(["email", "cadastro", "origem", "publico", "status", "plano", "assinou_em", "cancelou_em",
+                           "primeiro_quiz_em", "quizzes_do_teste", "whatsapp", "autorizou_avisos_teste", "autorizou_ofertas"])
+    for nome, c in sorted(usuarios.items(), key=lambda x: x[1].get("criado_em") or 0, reverse=True):
+        if c.get("admin"):
+            continue
+        email = email_da_conta(nome, c) or ""
+        zap = c.get("whatsapp") or ""
+        if meta:
+            if email or (zap and c.get("ofertas_consentimento_em")):
+                escritor.writerow([email, ("+" + zap) if zap and c.get("ofertas_consentimento_em") else "", "BR"])
+            continue
+        escritor.writerow([email, data(c.get("criado_em")), c.get("origem") or "", c.get("publico") or "",
+                           _status_conta(c, agora), c.get("plano") or "", data(c.get("assinado_em")),
+                           data(c.get("cancelado_em")), data(c.get("primeiro_quiz_em")),
+                           c.get("teste_usados") if c.get("teste_cota") is not None else "",
+                           ("+" + zap) if zap else "", "sim" if c.get("whatsapp_consentimento_em") else "",
+                           "sim" if c.get("ofertas_consentimento_em") else ""])
+    nome_arquivo = f"quizzify-{'publico-meta' if meta else 'contatos'}-{datetime.now(FUSO_BRASIL):%Y-%m-%d}.csv"
+    return Response("\ufeff" + buf.getvalue(), mimetype="text/csv; charset=utf-8",
+                    headers={"Content-Disposition": f'attachment; filename="{nome_arquivo}"'})
 
 
 # ---- /admin: ativação em 24 h por origem ----

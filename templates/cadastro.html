@@ -52,6 +52,10 @@
             <input type="checkbox" name="whatsapp_ok" value="1" class="accent-lima w-4 h-4 mt-0.5">
             <span>Autorizo o Quizzify a me enviar mensagens no WhatsApp sobre o meu teste grátis (no máximo 2). Posso cancelar a qualquer momento respondendo SAIR.</span>
         </label>
+        <label class="flex items-start gap-2 text-xs text-slate-400 cursor-pointer mt-1">
+            <input type="checkbox" name="ofertas_ok" value="1" class="accent-lima w-4 h-4 mt-0.5">
+            <span>Quero receber novidades e ofertas do Quizzify no WhatsApp (opcional).</span>
+        </label>
     </div>
     {% endif %}
     <button {% if plano_id %}data-pixel-checkout="{{ plano_id }}" data-valor="{{ planos[plano_id].centavos / 100 }}" {% endif %}class="w-full bg-lima hover:bg-lima-claro text-tinta font-bold py-3 rounded-xl transition shadow-lg shadow-lima/20">{{ "Começar meu teste grátis" if gratis else "Criar conta" }}</button>

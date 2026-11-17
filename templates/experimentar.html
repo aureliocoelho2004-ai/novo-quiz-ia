@@ -53,6 +53,10 @@
                 <input type="checkbox" name="whatsapp_ok" value="1" class="accent-lima w-4 h-4 mt-0.5">
                 <span>Autorizo o Quizzify a me enviar mensagens no WhatsApp sobre o meu teste grátis (no máximo 2). Posso cancelar respondendo SAIR.</span>
             </label>
+            <label class="flex items-start gap-2 text-xs text-slate-400 cursor-pointer">
+                <input type="checkbox" name="ofertas_ok" value="1" class="accent-lima w-4 h-4 mt-0.5">
+                <span>Quero receber novidades e ofertas do Quizzify no WhatsApp (opcional).</span>
+            </label>
             <button class="w-full bg-lima hover:bg-lima-claro text-tinta font-extrabold text-lg py-4 rounded-2xl">{{ e.salvar }}</button>
         </form>
         <p class="text-xs text-center text-slate-500">Ao criar a conta, você concorda com os <a href="{{ url_for('pagina_termos') }}" class="underline">Termos</a>

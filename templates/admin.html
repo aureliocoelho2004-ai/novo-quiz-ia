@@ -137,6 +137,16 @@
         <button class="w-full rounded-xl bg-roxo text-white font-bold py-3">Renovar e enviar e-mail</button>
     </form>
 
+    <div class="space-y-2 bg-slate-900 p-4 rounded-xl border border-slate-700">
+        <h3 class="font-semibold">📥 Baixar contatos</h3>
+        <p class="text-xs text-slate-400">Planilha com e-mail, origem, status, plano, WhatsApp e as autorizações de cada pessoa.
+            Use WhatsApp para promoções só com quem tem "autorizou_ofertas = sim".</p>
+        <div class="grid grid-cols-2 gap-2 text-sm font-semibold text-center">
+            <a href="{{ url_for('exportar_contatos') }}" class="bg-slate-700 hover:bg-slate-600 rounded-xl py-2.5">📊 Planilha completa</a>
+            <a href="{{ url_for('exportar_contatos', formato='meta') }}" class="bg-slate-700 hover:bg-slate-600 rounded-xl py-2.5">🎯 Público da Meta</a>
+        </div>
+    </div>
+
     {% if divulgacao %}
     <form method="post" class="space-y-3 bg-slate-900 p-4 rounded-xl border border-slate-700">
         <input type="hidden" name="acao" value="divulgacao">
@@ -189,7 +199,7 @@
                     {% if conta.plano or conta.assinado_em %}<p>💳 Plano: {{ conta.plano or '—' }}{% if conta.assinado_em %} · assinou em {{ conta.assinado_em | data_hora }}{% endif %}{% if conta.ultimo_pagamento_em and conta.ultimo_pagamento_em != conta.assinado_em %} · último pagamento {{ conta.ultimo_pagamento_em | data_hora }}{% endif %}</p>{% endif %}
                     {% if conta.cancelado_em %}<p class="text-red-300">🚫 Cancelou em {{ conta.cancelado_em | data_hora }}</p>{% endif %}
                     {% if conta.experimentou_sem_conta %}<p>🔓 Testou antes de criar a conta (/experimentar)</p>{% endif %}
-                    {% if conta.whatsapp %}<p>💬 WhatsApp: +{{ conta.whatsapp }} (autorizado em {{ conta.whatsapp_consentimento_em | data_hora }})</p>{% endif %}
+                    {% if conta.whatsapp %}<p>💬 WhatsApp: +{{ conta.whatsapp }}{% if conta.whatsapp_consentimento_em %} · avisos do teste autorizados{% endif %}{% if conta.ofertas_consentimento_em %} · <b class="text-lima">ofertas autorizadas</b>{% endif %}</p>{% endif %}
                 </div>
                 {% if conta.pago_ate and not conta.cancelado_em %}
                 <form method="post" class="flex items-center gap-2 text-xs" onsubmit='return confirm({{ ("Registrar cancelamento de " ~ nome ~ "?") | tojson }})'>
