@@ -20,7 +20,7 @@ from functools import wraps
 import requests
 from flask import (Flask, Response, abort, flash, g, has_request_context, jsonify, redirect,
                    render_template, request, session, url_for)
-from itsdangerous import BadSignature, URLSafeTimedSerializer
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.exceptions import RequestEntityTooLarge
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -724,6 +724,9 @@ def confirmar_pagamento(pedido_id, transacao, slug):
             return False
         conta["pago_ate"] = max(time.time(), conta.get("pago_ate", 0)) + pedido["dias"] * DIA
         conta["plano"] = pedido["plano"]
+        conta.setdefault("assinado_em", time.time())
+        conta["ultimo_pagamento_em"] = time.time()
+        conta.pop("cancelado_em", None)
         if conta.get("expira_em") or conta.get("teste_acabou_em"):   # assinou durante/depois do teste
             conta.pop("expira_em", None)
             conta["assinante"] = True
@@ -1021,6 +1024,15 @@ def admin():
                   + (f" Ignorados (não encontrados, já pagantes ou sem teste): {', '.join(ignorados)}." if ignorados else ""),
                   "ok" if renovados else "erro")
             return redirect(url_for("admin"))
+        elif acao == "cancelar" and usuarios.get(nome, {}).get("pago_ate"):
+            conta = usuarios[nome]
+            conta["cancelado_em"] = time.time()
+            if request.form.get("encerrar") == "1":       # reembolso: o acesso termina agora
+                conta["pago_ate"] = min(conta["pago_ate"], time.time())
+            flash(f"Cancelamento de '{nome}' registrado.", "ok")
+        elif acao == "descancelar" and nome in usuarios:
+            usuarios[nome].pop("cancelado_em", None)
+            flash(f"Cancelamento de '{nome}' desfeito.", "ok")
         elif acao == "liberar30" and usuarios.get(nome, {}).get("assinante"):
             conta = usuarios[nome]
             conta["pago_ate"] = max(time.time(), conta.get("pago_ate", 0)) + 30 * DIA
@@ -1064,7 +1076,9 @@ def admin():
             flash("Não foi possível guardar as alterações no Firebase.", "erro")
         return redirect(url_for("admin"))
 
+    preencher_primeiro_quiz(usuarios)
     return render_template("admin.html", usuarios=sorted(usuarios.items()), agora=time.time(),
+                           resumo_ativacao=resumo_ativacao(usuarios),
                            config_limite_teste=LIMITE_TESTE, metricas=ler_metricas(),
                            divulgacao=ler_divulgacao(fresco=True), resumo_teste=resumo_testes(usuarios))
 
@@ -1100,6 +1114,14 @@ PUBLICOS = {
 }
 
 
+def normalizar_whatsapp(texto):
+    """(21) 99999-8888 -> 5521999998888. None se não parecer um celular brasileiro."""
+    d = re.sub(r"\D", "", texto or "")
+    if len(d) in (10, 11):
+        d = "55" + d
+    return d if d.startswith("55") and len(d) in (12, 13) else None
+
+
 @app.route("/cadastro", methods=["GET", "POST"])
 def cadastro():
     plano_id = plano_escolhido()
@@ -1127,11 +1149,18 @@ def cadastro():
     else:
         nova = {"senha": generate_password_hash(senha), "admin": False, "trocar_senha": False,
                 "assinante": True, "pago_ate": 0, "criado_em": agora, "origem": origem_atual()}
+        extras = {}
+        if publico_id:
+            extras["publico"] = publico_id
+        zap = normalizar_whatsapp(request.form.get("whatsapp"))
+        if zap and request.form.get("whatsapp_ok") == "1":     # só guarda com a autorização marcada
+            extras.update(whatsapp=zap, whatsapp_consentimento_em=agora)
         if gratis:   # teste grátis pelo site: 3 quizzes em 48 horas, sem cartão
             nova = {"senha": nova["senha"], "admin": False, "trocar_senha": False, "criado_em": agora,
                     "origem": nova["origem"], "expira_em": agora + TESTE_GRATIS_HORAS * 3600,
                     "teste_horas": TESTE_GRATIS_HORAS, "teste_cota": TESTE_GRATIS_QUIZZES, "teste_usados": 0,
                     "teste_site": True}
+        nova.update(extras)
 
         def criar(usuarios):
             if email in usuarios:
@@ -1156,10 +1185,8 @@ def cadastro():
         if gratis:
             pixel("StartTrial", value=0, currency="BRL")
             pixel("Lead", content_name="teste_gratis")     # objetivo "Cadastros/Leads" da Meta otimiza por este evento
-            enviar_inicio_teste(email, dict(nova))
-            flash(f"Seu teste grátis começou! Você tem {TESTE_GRATIS_QUIZZES} quizzes para criar nas próximas "
-                  f"{TESTE_GRATIS_HORAS} horas. 🎉", "ok")
-            return redirect(url_for("index"))
+            agendar_ativacao_15m(email)       # 1º e-mail de ativação em 15 min (só se ainda não criou quiz)
+            return redirect(url_for("comecar", p=publico_id or None))
         # Veio da landing com um plano escolhido: vai direto para o pagamento dele.
         if plano_id and INFINITEPAY_HANDLE:
             try:
@@ -1596,6 +1623,8 @@ def etapa_teste(conta, agora):
             return None                     # teste de 24h: só o aviso no app e o e-mail do fim
         if conta.get("cota_avisada"):
             return None                     # já recebeu o e-mail de cota esgotada
+        if conta.get("teste_site") and ainda_sem_quiz(conta):
+            return None                     # recebe o e-mail de ativação "acaba hoje" (6 h antes)
         etapa = "teste_antes"
     elif -JANELA_VENCIDA_DIAS * DIA < restante <= 0:
         etapa = "teste_fim"
@@ -2421,11 +2450,23 @@ def gerar():
         link, caminho = publicar_firebase(conteudo_html, tipo)
         if not sem_limite:
             registrar_geracao(usuario)
-        if conta.get("teste_cota") is not None and conta.get("expira_em"):
+        conta_teste = conta.get("teste_cota") is not None and conta.get("expira_em")
+        if not conta_teste and not conta.get("primeiro_quiz_em"):
+            def primeiro(usuarios):
+                c = usuarios.get(usuario)
+                if not c or c.get("primeiro_quiz_em"): return False
+                c["primeiro_quiz_em"] = time.time()
+                return c
+            try:
+                alterar_usuarios(primeiro)
+            except Exception:
+                log.exception("Falha ao registrar o primeiro quiz de %s", usuario)
+        if conta_teste:
             def gastar(usuarios):
                 c = usuarios.get(usuario)
                 if not c: return False
                 c["teste_usados"] = c.get("teste_usados", 0) + 1
+                c.setdefault("primeiro_quiz_em", time.time())
                 return c
             try:
                 c = alterar_usuarios(gastar)
@@ -2443,6 +2484,395 @@ def gerar():
         return jsonify(html=conteudo_html, link=link, total=len(itens),
                        nome_arquivo=f"{nome_seguro(titulo)}.html",
                        item=item and {**item, "data": data_hora(item["criado_em"])})
+
+
+# --------------------------------------------------------------------------- #
+# Ativação do teste grátis: tela pós-cadastro (/comecar), material de exemplo que
+# não gasta a cota, e-mails de ativação com link mágico e oferta do plano anual.
+# --------------------------------------------------------------------------- #
+def publico_da_conta(conta):
+    """pais | concursos (sem p no link de cadastro, a versão de concursos)."""
+    p = (conta or {}).get("publico")
+    return p if p in ("pais", "concursos") else "concursos"
+
+
+def reais(centavos):
+    return f"R$ {centavos / 100:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+
+def oferta_anual():
+    """Textos do plano anual em destaque: "R$ 197/ano = R$ 16,42/mês (45% mais barato)"."""
+    anual, mensal = PLANOS["anual"]["centavos"], PLANOS["mensal"]["centavos"]
+    pct = round((1 - anual / (mensal * 12)) * 100) if mensal else 0
+    preco_anual = reais(anual).replace(",00", "")
+    return {"anual": preco_anual, "por_mes": reais(anual / 12), "pct": pct, "mensal": reais(mensal),
+            "frase": f"{preco_anual}/ano = {reais(anual / 12)}/mês ({pct}% mais barato)"}
+
+
+@app.context_processor
+def dados_oferta():
+    return {"oferta_anual": oferta_anual()}
+
+
+COMECAR = {
+    "pais": {
+        "titulo": "Vamos criar o primeiro quiz do seu filho",
+        "sub": "Tire uma foto do caderno ou do livro. Em 1 minuto, o quiz fica pronto com correção e explicação.",
+        "botao": "📸 Tirar foto do caderno", "botao_camera": True,
+        "link": "ou escolher um arquivo", "exemplo": "Testar com uma lição de exemplo",
+        "titulo_quiz": "Quiz do caderno", "processando": "Lendo o caderno e montando as perguntas…",
+        "palavra": "quiz", "itens": "perguntas",
+    },
+    "concursos": {
+        "titulo": "Vamos criar o seu primeiro simulado",
+        "sub": "Envie o PDF da apostila, um resumo ou a foto do caderno. Em 1 minuto, as questões ficam prontas, com gabarito comentado.",
+        "botao": "📄 Enviar meu PDF", "botao_camera": False,
+        "link": "ou tirar uma foto do material", "exemplo": "Testar com uma apostila de exemplo",
+        "titulo_quiz": "Meu simulado", "processando": "Lendo o material e montando as questões no estilo da prova…",
+        "palavra": "simulado", "itens": "questões",
+    },
+}
+
+# Material de exemplo (1 página) para quem não tem o caderno ou o PDF à mão.
+MATERIAL_EXEMPLO = {
+    "pais": ("Ciências (7º ano) - O ciclo da água", """O ciclo da água
+A água do planeta está sempre em movimento e passa por diferentes estados físicos: sólido (gelo), líquido e gasoso (vapor).
+Esse caminho contínuo é chamado de ciclo da água ou ciclo hidrológico, e a principal fonte de energia que o movimenta é o Sol.
+
+1. Evaporação: o calor do Sol aquece a água de rios, lagos e oceanos, que passa do estado líquido para o gasoso e sobe para a atmosfera na forma de vapor.
+2. Transpiração: as plantas também liberam vapor de água pelas folhas. A soma da evaporação com a transpiração das plantas é chamada de evapotranspiração.
+3. Condensação: ao subir, o vapor encontra camadas de ar mais frias, esfria e volta ao estado líquido em gotículas muito pequenas. O conjunto dessas gotículas forma as nuvens.
+4. Precipitação: quando as gotículas se juntam e ficam pesadas, caem na forma de chuva, granizo ou neve.
+5. Infiltração e escoamento: parte da água da chuva penetra no solo (infiltração) e abastece os lençóis freáticos e os aquíferos; outra parte escorre pela superfície (escoamento superficial) e chega aos rios, lagos e oceanos, onde o ciclo recomeça.
+
+Mudanças de estado físico: fusão (sólido para líquido), solidificação (líquido para sólido), vaporização (líquido para gasoso) e condensação ou liquefação (gasoso para líquido).
+
+Curiosidades: cerca de 97% da água do planeta é salgada, e a maior parte da água doce está congelada nas geleiras e nas calotas polares. Por isso, economizar água é tão importante."""),
+    "concursos": ("Direito Constitucional - Direitos e garantias fundamentais", """Direitos e garantias fundamentais (Constituição Federal de 1988)
+O Título II da Constituição trata dos direitos e garantias fundamentais. O artigo 5º garante aos brasileiros e aos estrangeiros residentes no País a inviolabilidade do direito à vida, à liberdade, à igualdade, à segurança e à propriedade.
+
+Principais incisos do art. 5º:
+- Inciso I: homens e mulheres são iguais em direitos e obrigações.
+- Inciso II (legalidade): ninguém será obrigado a fazer ou deixar de fazer alguma coisa senão em virtude de lei.
+- Inciso III: ninguém será submetido a tortura nem a tratamento desumano ou degradante.
+- Inciso IV: é livre a manifestação do pensamento, sendo vedado o anonimato.
+- Inciso XI: a casa é asilo inviolável do indivíduo; ninguém nela pode penetrar sem consentimento do morador, salvo em caso de flagrante delito ou desastre, para prestar socorro, ou, durante o dia, por determinação judicial.
+- Inciso XXXV: a lei não excluirá da apreciação do Poder Judiciário lesão ou ameaça a direito.
+- Inciso XXXVI: a lei não prejudicará o direito adquirido, o ato jurídico perfeito e a coisa julgada.
+- Inciso XXXVII: não haverá juízo ou tribunal de exceção.
+- Inciso XXXIX: não há crime sem lei anterior que o defina, nem pena sem prévia cominação legal.
+- Inciso XL: a lei penal não retroagirá, salvo para beneficiar o réu.
+- Inciso XLII: a prática do racismo constitui crime inafiançável e imprescritível, sujeito à pena de reclusão.
+
+Remédios constitucionais:
+- Habeas corpus (inciso LXVIII): protege a liberdade de locomoção contra ilegalidade ou abuso de poder.
+- Mandado de segurança (inciso LXIX): protege direito líquido e certo não amparado por habeas corpus ou habeas data.
+- Mandado de injunção (inciso LXXI): cabe quando a falta de norma regulamentadora torna inviável o exercício de direitos e liberdades constitucionais.
+- Habeas data (inciso LXXII): assegura o conhecimento ou a retificação de informações relativas à pessoa do impetrante em registros de entidades governamentais ou de caráter público.
+- Ação popular (inciso LXXIII): qualquer cidadão pode propô-la para anular ato lesivo ao patrimônio público, à moralidade administrativa, ao meio ambiente e ao patrimônio histórico e cultural.
+
+As normas definidoras dos direitos e garantias fundamentais têm aplicação imediata (art. 5º, § 1º)."""),
+}
+_exemplos_cache = {}
+_trava_exemplos = threading.Lock()
+
+
+def quiz_de_exemplo(publico):
+    """Quiz do material de exemplo: gerado uma vez com a IA e reaproveitado (sem custo para os próximos)."""
+    if publico in _exemplos_cache:
+        return _exemplos_cache[publico]
+    with _trava_exemplos:
+        if publico in _exemplos_cache:
+            return _exemplos_cache[publico]
+        caminho = f"exemplos/{publico}.json"
+        dados, _ = ler_json_versionado(caminho)
+        if not dados or not dados.get("link"):
+            titulo, texto = MATERIAL_EXEMPLO[publico]
+            itens = normalizar_quiz(chamar_gemini(PROMPT_QUIZ.format(n=10), texto, []), 10)
+            if not itens:
+                raise RuntimeError("IA devolveu o exemplo vazio")
+            html = render_template("quiz.html", titulo=f"Exemplo: {titulo}", professor="", itens=itens,
+                                   divulgacao_js=f"{URL_APP}/divulgacao.js?tipo=quiz")
+            link, arquivo = publicar_firebase(html, "quiz")
+            dados = {"titulo": f"Exemplo: {titulo}", "link": link, "arquivo": arquivo, "total": len(itens)}
+            gravar_json_versionado(caminho, dados)
+        _exemplos_cache[publico] = dados
+        return dados
+
+
+@app.get("/comecar")
+@login_obrigatorio
+def comecar():
+    """Tela logo depois do cadastro: uma única ação, criar o primeiro quiz."""
+    conta = carregar_usuarios().get(session["usuario"]) or {}
+    publico = request.args.get("p") if request.args.get("p") in COMECAR else publico_da_conta(conta)
+    cota = conta.get("teste_cota")
+    teste = bool(conta.get("expira_em") and cota is not None)
+    restam = max(0, cota - (conta.get("teste_usados") or 0)) if teste else None
+    return render_template("comecar.html", t=COMECAR[publico], publico=publico, teste=teste, restam=restam,
+                           cota=cota, horas=conta.get("teste_horas") or TESTE_GRATIS_HORAS,
+                           max_arquivos=MAX_ARQUIVOS, max_mb=MAX_TOTAL_MB)
+
+
+@app.post("/api/exemplo")
+@login_obrigatorio
+def gerar_exemplo():
+    """Quiz do material de exemplo: não conta como um dos quizzes do teste."""
+    publico = request.form.get("p") if request.form.get("p") in MATERIAL_EXEMPLO else "concursos"
+    try:
+        dados = quiz_de_exemplo(publico)
+    except Exception:
+        log.exception("Falha ao gerar o quiz de exemplo (%s)", publico)
+        return jsonify(erro="Não foi possível abrir o exemplo agora. Tente de novo em instantes."), 502
+    usuario = session["usuario"]
+    if not any(i.get("link") == dados["link"] for i in listar_historico(usuario)):
+        registrar_no_historico(usuario, {"id": uuid.uuid4().hex[:12], "titulo": dados["titulo"], "tipo": "quiz",
+                                         "total": dados["total"], "link": dados["link"], "arquivo": dados["arquivo"],
+                                         "criado_em": time.time(), "exemplo": True})
+
+    def marcar(usuarios):
+        c = usuarios.get(usuario)
+        if not c:
+            return False
+        c.setdefault("exemplo_em", time.time())
+        return c
+    try:
+        alterar_usuarios(marcar)
+    except Exception:
+        log.exception("Falha ao marcar exemplo de %s", usuario)
+    return jsonify(link=dados["link"], total=dados["total"], exemplo=True)
+
+
+# ---- link mágico (entra sem senha, a partir dos e-mails) ----
+def _assinador_acesso():
+    return URLSafeTimedSerializer(app.secret_key, salt="acesso-email")
+
+
+def link_magico(nome, destino="comecar"):
+    return f"{URL_APP}/acesso/{_assinador_acesso().dumps({'u': nome, 'd': destino})}"
+
+
+@app.get("/acesso/<token>")
+def acesso_email(token):
+    try:
+        dados = _assinador_acesso().loads(token, max_age=7 * DIA)
+    except (BadSignature, SignatureExpired):
+        flash("Este link expirou. Entre com o seu e-mail e senha.", "erro")
+        return redirect(url_for("login"))
+    nome = dados.get("u")
+    conta = carregar_usuarios().get(nome)
+    if not conta:
+        return redirect(url_for("login"))
+    entrar_na_sessao(nome, conta)
+    destino = dados.get("d") if dados.get("d") in ("comecar", "assinatura", "index") else "comecar"
+    return redirect(url_for(destino))
+
+
+# ---- e-mails de ativação: 15 min, 24 h e 6 h antes do fim, só para quem não criou quiz ----
+ATIVACAO_PASSOS = ("15m", "24h", "final")
+
+
+def ainda_sem_quiz(conta):
+    return not conta.get("primeiro_quiz_em") and not (conta.get("teste_usados") or 0)
+
+
+def etapa_ativacao(conta, agora):
+    """Qual e-mail de ativação mandar agora (ou None)."""
+    expira, criado = conta.get("expira_em") or 0, conta.get("criado_em") or 0
+    if (conta.get("admin") or conta.get("teste_cota") is None or not expira or expira <= agora
+            or not ainda_sem_quiz(conta) or (conta.get("pago_ate") or 0) > agora):
+        return None
+    enviados = conta.get("ativacao_enviados") or []
+    final = f"final:{int(expira)}"
+    if expira - agora <= 6 * 3600:
+        return final if final not in enviados else None
+    if criado and criado + DIA <= agora < criado + 36 * 3600 and "24h" not in enviados:
+        return "24h"
+    if criado and criado + 15 * 60 <= agora < criado + 12 * 3600 and "15m" not in enviados and "24h" not in enviados:
+        return "15m"
+    return None
+
+
+def email_ativacao(etapa, nome, conta):
+    publico = publico_da_conta(conta)
+    pais = publico == "pais"
+    agora = time.time()
+    restam = max(0, (conta.get("teste_cota") or TESTE_GRATIS_QUIZZES) - (conta.get("teste_usados") or 0))
+    horas = conta.get("teste_horas") or TESTE_GRATIS_HORAS
+    faltam_h = max(1, round(((conta.get("expira_em") or agora) - agora) / 3600))
+    p = 'style="font-size:15px;line-height:1.55;margin:0 0 12px"'
+    link = link_magico(nome)
+    entrar = (f'<p style="font-size:13px;color:#64748b">O botão já entra na sua conta. Se pedir senha, use <b>{nome}</b> '
+              f'e a senha que você criou (ou <a href="{URL_APP}/esqueci-senha" style="color:#64748b">crie uma nova</a>).</p>')
+    if etapa == "15m":
+        if pais:
+            assunto, titulo, botao = "Seu primeiro quiz leva 1 minuto", "Sua conta no Quizzify está pronta", "Criar o primeiro quiz"
+            corpo = ["Agora falta só o mais legal: ver o caderno do seu filho virar quiz.", "É assim:",
+                     "<ol style='font-size:15px;line-height:1.6'><li>Abra o caderno na matéria da próxima prova.</li>"
+                     "<li>Tire uma foto da página.</li><li>Em 1 minuto, o quiz fica pronto, com correção e explicação de cada resposta.</li></ol>"]
+        else:
+            assunto, titulo, botao = "Seu primeiro simulado leva 1 minuto", "Sua conta no Quizzify está pronta", "Criar meu primeiro simulado"
+            corpo = ["O próximo passo é transformar o seu material em questões.",
+                     "<ol style='font-size:15px;line-height:1.6'><li>Escolha o PDF da apostila, um resumo ou a foto do caderno.</li>"
+                     "<li>Envie no Quizzify.</li><li>Em 1 minuto, as questões ficam prontas, com gabarito comentado.</li></ol>"]
+        rodape = f"Você tem {restam} quizzes grátis por {horas} horas. Sem cartão."
+    elif etapa == "24h":
+        if pais:
+            assunto, titulo, botao = "Seu filho tem prova esta semana?", "Uma foto do caderno vira treino para hoje à noite", "Tirar a foto e criar o quiz"
+            corpo = ["Reler o caderno dá a sensação de que a matéria entrou. Mas é respondendo perguntas que ela fica.",
+                     "Se o seu filho tem prova nos próximos dias, uma foto da matéria já basta. O Quizzify monta as perguntas e explica cada erro.",
+                     "Sem o caderno por perto? Dá para testar com uma lição de exemplo no mesmo botão."]
+        else:
+            assunto, titulo, botao = "Quantas questões você resolveu hoje?", "Seu material pode virar treino em 1 minuto", "Criar meu simulado agora"
+            corpo = ["Ler o resumo de novo parece revisão, mas o que fixa é responder questões e entender cada erro.",
+                     "Pegue o assunto que você estudou ontem e envie no Quizzify. Em 1 minuto você tem questões no estilo da prova, com gabarito comentado.",
+                     "Sem material à mão? Dá para testar com uma apostila de exemplo no mesmo botão."]
+        rodape = f"Seu teste ainda tem {restam} quizzes e termina em {faltam_h} horas."
+    else:
+        palavra = "quizzes" if pais else "simulados"
+        assunto = f"Seus {restam} {palavra} grátis acabam hoje"
+        titulo = "Seu teste do Quizzify termina hoje"
+        botao = f"Usar meus {palavra} grátis"
+        corpo = [f"Seu teste termina hoje e os {restam} quizzes grátis ainda não foram usados.",
+                 "Leva 1 minuto: uma foto do caderno e o quiz fica pronto, com correção." if pais else
+                 "Envie um PDF ou uma foto do material e veja as questões prontas em 1 minuto."]
+        rodape = "Depois do teste, você só assina se gostar."
+    miolo = "".join(c if c.startswith("<") else f"<p {p}>{c}</p>" for c in ["Olá!"] + corpo)
+    depois = f"<p {p}>{rodape}</p>"
+    texto_extra = ""
+    if etapa.startswith("final"):
+        o = oferta_anual()
+        depois += (f'<div style="border:2px solid #5920AB;border-radius:12px;padding:14px;margin:8px 0 16px">'
+                   f'<p style="margin:0;font-size:14px;color:#5920AB;font-weight:bold">⭐ Plano anual</p>'
+                   f'<p style="margin:4px 0 0;font-size:18px;font-weight:800">{o["frase"]}</p>'
+                   f'<p style="margin:6px 0 0;font-size:13px;color:#64748b">ou mensal: {o["mensal"]}/mês · 7 dias de garantia</p></div>')
+        texto_extra = f"\n\nPlano anual: {o['frase']}. Ou mensal: {o['mensal']}/mês. 7 dias de garantia."
+    depois += entrar + f"<p {p}>Equipe Quizzify</p>"
+    texto = "Olá!\n\n" + "\n\n".join(re.sub(r"<[^>]+>", " ", c).strip() for c in corpo) + f"\n\n{rodape}{texto_extra}\n\nEquipe Quizzify"
+    return montar_email(assunto, titulo, miolo, botao, link, texto, depois)
+
+
+def enviar_ativacao(nome, etapa=None):
+    """Envia o e-mail de ativação devido para a conta (uma vez por etapa). Devolve a etapa enviada."""
+    usuarios = carregar_usuarios()
+    conta = usuarios.get(nome) or {}
+    etapa = etapa or etapa_ativacao(conta, time.time())
+    destino = email_da_conta(nome, conta)
+    if not etapa or not destino:
+        return None
+    enviar_email(destino, *email_ativacao(etapa, nome, conta), tag=f"ativacao-{etapa.split(':')[0]}")
+
+    def marcar(usuarios):
+        c = usuarios.get(nome)
+        if not c:
+            return False
+        c["ativacao_enviados"] = ((c.get("ativacao_enviados") or []) + [etapa])[-10:]
+        return c
+    alterar_usuarios(marcar)
+    return etapa
+
+
+def agendar_ativacao_15m(nome):
+    """Dispara o 1º e-mail 15 minutos depois do cadastro (a tarefa a cada 10 min cobre reinícios do servidor)."""
+    if not os.environ.get("BREVO_API_KEY") or not EMAIL_REMETENTE:
+        return
+    def tarefa():
+        try:
+            conta = carregar_usuarios().get(nome) or {}
+            if etapa_ativacao(conta, time.time()) == "15m":
+                enviar_ativacao(nome, "15m")
+        except Exception:
+            log.exception("Falha no e-mail de ativação de 15 min para %s", nome)
+    t = threading.Timer(15 * 60 + 5, tarefa)
+    t.daemon = True
+    t.start()
+
+
+@app.route("/tarefas/ativacao", methods=["GET", "POST"])
+def tarefa_ativacao():
+    """Chamar a cada 10 minutos (cron-job.org): e-mails de ativação de quem ainda não criou quiz."""
+    token = os.environ.get("LEMBRETES_TOKEN", "")
+    if not token:
+        return jsonify(erro="LEMBRETES_TOKEN não configurado"), 503
+    if not hmac.compare_digest(request.args.get("token", ""), token):
+        abort(403)
+    if not os.environ.get("BREVO_API_KEY") or not EMAIL_REMETENTE:
+        return jsonify(erro="BREVO_API_KEY ou EMAIL_REMETENTE não configurados"), 503
+    if (teste := request.args.get("teste", "").strip()):          # ?teste=email&tipo=15m|24h|final&p=pais|concursos
+        tipo = request.args.get("tipo", "15m")
+        exemplo = {"publico": request.args.get("p", "concursos"), "teste_cota": TESTE_GRATIS_QUIZZES, "teste_usados": 0,
+                   "teste_horas": TESTE_GRATIS_HORAS, "expira_em": time.time() + (5 if tipo == "final" else 24) * 3600}
+        ok = enviar_email(teste, *email_ativacao("final:0" if tipo == "final" else tipo, teste, exemplo), tag="ativacao-teste")
+        return jsonify(enviado_para=teste, ok=ok)
+    agora, enviados, falhas = time.time(), {}, 0
+    for nome, conta in carregar_usuarios().items():
+        etapa = etapa_ativacao(conta, agora)
+        if not etapa or not email_da_conta(nome, conta):
+            continue
+        try:
+            enviar_ativacao(nome, etapa)
+            chave = etapa.split(":")[0]
+            enviados[chave] = enviados.get(chave, 0) + 1
+        except Exception:
+            log.exception("Falha no e-mail de ativação (%s) para %s", etapa, nome)
+            falhas += 1
+    return jsonify(enviados=enviados, falhas=falhas)
+
+
+# ---- /admin: ativação em 24 h por origem ----
+ORIGENS_ATIVACAO = ("anuncio-pais", "anuncio-concursos", "instagram", "direto")
+
+
+def preencher_primeiro_quiz(usuarios):
+    """Contas antigas (antes desta versão) sem a data do 1º quiz: busca no histórico, uma vez."""
+    achados = {}
+    for nome, c in usuarios.items():
+        if c.get("primeiro_quiz_em") or c.get("primeiro_quiz_verificado") or not c.get("teste_usados"):
+            continue
+        try:
+            datas = [i.get("criado_em") for i in listar_historico(nome) if i.get("criado_em") and not i.get("exemplo")]
+        except Exception:
+            continue
+        achados[nome] = min(datas) if datas else None
+    if not achados:
+        return
+
+    def gravar(usuarios_):
+        for nome, quando in achados.items():
+            c = usuarios_.get(nome)
+            if c:
+                c["primeiro_quiz_verificado"] = True
+                if quando and not c.get("primeiro_quiz_em"):
+                    c["primeiro_quiz_em"] = quando
+        return True
+    try:
+        alterar_usuarios(gravar)
+        for nome, quando in achados.items():
+            usuarios[nome]["primeiro_quiz_verificado"] = True
+            if quando:
+                usuarios[nome].setdefault("primeiro_quiz_em", quando)
+    except Exception:
+        log.exception("Falha ao preencher datas do primeiro quiz")
+
+
+def resumo_ativacao(usuarios):
+    """Cadastros do teste grátis por origem: quantos criaram o 1º quiz em até 24 h."""
+    linhas = {o: {"cadastros": 0, "ativ24": 0, "ativou": 0, "exemplo": 0} for o in ORIGENS_ATIVACAO + ("outras",)}
+    for c in usuarios.values():
+        if not c.get("teste_site") or c.get("admin"):
+            continue
+        o = c.get("origem") if c.get("origem") in ORIGENS_ATIVACAO else "outras"
+        l = linhas[o]
+        l["cadastros"] += 1
+        primeiro, criado = c.get("primeiro_quiz_em"), c.get("criado_em")
+        if primeiro or c.get("teste_usados"):
+            l["ativou"] += 1
+        if primeiro and criado and primeiro - criado <= DIA:
+            l["ativ24"] += 1
+        if c.get("exemplo_em"):
+            l["exemplo"] += 1
+    total = {k: sum(l[k] for l in linhas.values()) for k in ("cadastros", "ativ24", "ativou", "exemplo")}
+    return {"linhas": linhas, "total": total}
 
 
 @app.errorhandler(RequestEntityTooLarge)

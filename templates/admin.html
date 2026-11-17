@@ -88,6 +88,39 @@
     </div>
     {% endif %}
 
+    {% if resumo_ativacao and resumo_ativacao.total.cadastros %}
+    {% set ra = resumo_ativacao %}
+    <div class="space-y-2">
+        <h3 class="font-semibold">⚡ Ativação: 1º quiz em até 24 h</h3>
+        <div class="overflow-x-auto rounded-xl border border-slate-700">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-900 text-slate-400 text-xs"><tr>
+                    <th class="text-left p-2">Origem</th><th class="p-2">Cadastros</th><th class="p-2">Em 24 h</th>
+                    <th class="p-2">Criaram (total)</th><th class="p-2">Viram exemplo</th></tr></thead>
+                <tbody>
+                {% for origem, l in ra.linhas.items() if l.cadastros %}
+                <tr class="border-t border-slate-800">
+                    <td class="p-2 font-semibold break-all">{{ origem }}</td>
+                    <td class="p-2 text-center">{{ l.cadastros }}</td>
+                    <td class="p-2 text-center"><b class="{{ 'text-lima' if l.ativ24 * 2 >= l.cadastros else 'text-amber-300' }}">{{ l.ativ24 }}</b>
+                        <span class="block text-[11px] text-slate-500">{{ (100 * l.ativ24 / l.cadastros) | round | int }}%</span></td>
+                    <td class="p-2 text-center">{{ l.ativou }}</td>
+                    <td class="p-2 text-center">{{ l.exemplo }}</td>
+                </tr>
+                {% endfor %}
+                <tr class="border-t border-slate-600 font-bold">
+                    <td class="p-2">Total</td><td class="p-2 text-center">{{ ra.total.cadastros }}</td>
+                    <td class="p-2 text-center">{{ ra.total.ativ24 }}<span class="block text-[11px] text-slate-500 font-normal">{{ (100 * ra.total.ativ24 / ra.total.cadastros) | round | int }}%</span></td>
+                    <td class="p-2 text-center">{{ ra.total.ativou }}</td><td class="p-2 text-center">{{ ra.total.exemplo }}</td>
+                </tr>
+                </tbody>
+            </table>
+        </div>
+        <p class="text-xs text-slate-400">Meta: 50% criando o 1º quiz em até 24 h. "Viram exemplo" = abriram o quiz de exemplo (não conta como ativação).
+            Contas antigas sem data do 1º quiz entram só em "Criaram (total)".</p>
+    </div>
+    {% endif %}
+
     <form method="post" class="space-y-3 bg-slate-900 p-4 rounded-xl border border-slate-700"
           onsubmit="return confirm('Renovar o teste e enviar o e-mail para essas pessoas?')">
         <input type="hidden" name="acao" value="novo_prazo">
@@ -145,6 +178,28 @@
                 </span>
             </summary>
             <div class="p-3 pt-0 space-y-2">
+                <div class="text-xs text-slate-400 space-y-0.5 bg-slate-800/60 rounded-lg p-2">
+                    {% if conta.criado_em %}<p>📝 Cadastro: {{ conta.criado_em | data_hora }}{% if conta.publico %} · público: {{ conta.publico }}{% endif %}</p>{% endif %}
+                    {% if conta.primeiro_quiz_em %}
+                    {% set horas_1o = ((conta.primeiro_quiz_em - conta.criado_em) / 3600) if conta.criado_em else none %}
+                    <p>⚡ 1º quiz: {{ conta.primeiro_quiz_em | data_hora }}{% if horas_1o is not none %} ({{ 'menos de 1 h' if horas_1o < 1 else (horas_1o | round | int) ~ ' h' }} após o cadastro){% endif %}</p>
+                    {% elif conta.teste_usados %}<p>⚡ Criou quiz (data anterior ao registro)</p>
+                    {% else %}<p>⚡ Ainda não criou quiz{% if conta.exemplo_em %} · viu o exemplo em {{ conta.exemplo_em | data_hora }}{% endif %}</p>{% endif %}
+                    {% if conta.plano or conta.assinado_em %}<p>💳 Plano: {{ conta.plano or '—' }}{% if conta.assinado_em %} · assinou em {{ conta.assinado_em | data_hora }}{% endif %}{% if conta.ultimo_pagamento_em and conta.ultimo_pagamento_em != conta.assinado_em %} · último pagamento {{ conta.ultimo_pagamento_em | data_hora }}{% endif %}</p>{% endif %}
+                    {% if conta.cancelado_em %}<p class="text-red-300">🚫 Cancelou em {{ conta.cancelado_em | data_hora }}</p>{% endif %}
+                    {% if conta.whatsapp %}<p>💬 WhatsApp: +{{ conta.whatsapp }} (autorizado em {{ conta.whatsapp_consentimento_em | data_hora }})</p>{% endif %}
+                </div>
+                {% if conta.pago_ate and not conta.cancelado_em %}
+                <form method="post" class="flex items-center gap-2 text-xs" onsubmit='return confirm({{ ("Registrar cancelamento de " ~ nome ~ "?") | tojson }})'>
+                    <input type="hidden" name="acao" value="cancelar">
+                    <input type="hidden" name="usuario" value="{{ nome }}">
+                    <label class="flex items-center gap-1 text-slate-400"><input type="checkbox" name="encerrar" value="1" class="accent-lima"> encerrar acesso agora (reembolso)</label>
+                    <button class="ml-auto bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg font-semibold">Registrar cancelamento</button>
+                </form>
+                {% elif conta.cancelado_em %}
+                <form method="post"><input type="hidden" name="acao" value="descancelar"><input type="hidden" name="usuario" value="{{ nome }}">
+                    <button class="text-xs text-slate-400 underline">Desfazer cancelamento</button></form>
+                {% endif %}
                 <form method="post" class="flex gap-2">
                     <input type="hidden" name="acao" value="redefinir">
                     <input type="hidden" name="usuario" value="{{ nome }}">

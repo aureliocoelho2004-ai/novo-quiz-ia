@@ -37,19 +37,23 @@
 
         {% if pagamentos_ativos %}
         <div class="grid gap-3">
-            {% for id, plano in planos.items() %}
+            {% for id in ['anual', 'mensal'] if id in planos %}{% set plano = planos[id] %}
             <form method="post" action="{{ url_for('assinatura_pagar') }}"
                   class="rounded-xl border {{ 'border-lima border-2' if id == destaque else 'border-slate-700' }} bg-slate-900 p-4 space-y-2">
                 <input type="hidden" name="plano" value="{{ id }}">
                 <div class="flex justify-between items-baseline">
                     <h3 class="font-bold text-lg">{{ plano.nome }}</h3>
-                    {% if id == 'anual' %}
-                    {% set economia = planos.mensal.centavos * 12 - plano.centavos %}
-                    {% if economia > 0 %}<span class="text-xs font-semibold bg-lima text-tinta rounded-full px-2 py-0.5">economize R$ {{ '%.2f' | format(economia / 100) | replace('.', ',') }}</span>{% endif %}
+                    {% if id == 'anual' and oferta_anual.pct > 0 %}
+                    <span class="text-xs font-semibold bg-lima text-tinta rounded-full px-2 py-0.5">⭐ {{ oferta_anual.pct }}% mais barato</span>
                     {% endif %}
                 </div>
+                {% if id == 'anual' %}
+                <p class="text-2xl font-extrabold">{{ oferta_anual.anual }}<span class="text-sm font-normal text-slate-400">/ano</span>
+                    <span class="block text-base font-bold text-lima">= {{ oferta_anual.por_mes }}/mês</span></p>
+                {% else %}
                 <p class="text-2xl font-extrabold">R$ {{ '%.2f' | format(plano.centavos / 100) | replace('.', ',') }}
-                    <span class="text-sm font-normal text-slate-400">/ {{ 'mês' if id == 'mensal' else 'ano' }}</span></p>
+                    <span class="text-sm font-normal text-slate-400">/ mês</span></p>
+                {% endif %}
                 <p class="text-xs text-slate-400">{{ plano.dias }} dias de acesso · Pix ou cartão{{ ' (até 12x)' if id == 'anual' }}</p>
                 <button data-pixel-checkout="{{ id }}" data-valor="{{ plano.centavos / 100 }}" class="w-full bg-lima hover:bg-lima-claro text-tinta font-bold py-2.5 rounded-xl transition">
                     {{ 'Renovar' if conta.pago_ate else 'Assinar' }} {{ plano.nome | lower }}

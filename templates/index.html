@@ -1,7 +1,10 @@
 {% extends "base.html" %}
 {% block conteudo %}
 <!-- Formulário -->
-<form id="form-gerar" class="space-y-4"
+{% if request.args.get('destaque') %}
+<p class="text-center text-sm text-lima font-semibold mb-3">👇 Crie o seu primeiro quiz: escolha o arquivo ou a foto e toque em Gerar com IA</p>
+{% endif %}
+<form id="form-gerar" class="space-y-4{{ ' ring-2 ring-lima rounded-2xl p-4' if request.args.get('destaque') }}"
       data-max-arquivos="{{ max_arquivos }}" data-max-mb="{{ max_mb }}">
     <div class="grid grid-cols-2 gap-2" role="radiogroup">
         <label class="cursor-pointer">
