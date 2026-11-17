@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block titulo %}{{ e.titulo }} - Quizzify{% endblock %}
+{% block conteudo %}
+<section id="experimentar" class="space-y-6 pt-2" data-publico="{{ publico }}" data-max-arquivos="{{ max_arquivos }}"
+         data-max-mb="{{ max_mb }}" data-palavra="{{ e.palavra }}" data-itens="{{ e.itens }}">
+
+    <!-- 1. Página do anúncio (sem conta) -->
+    <div id="etapa-escolher" class="space-y-5 text-center">
+        <h1 class="text-2xl font-extrabold leading-tight">{{ e.titulo }}</h1>
+        <input type="file" id="campo-camera" accept="image/*" capture="environment" class="sr-only">
+        <input type="file" id="campo-arquivo" multiple accept=".pdf,.docx,.pptx,image/*" class="sr-only">
+        <label for="{{ 'campo-camera' if t.botao_camera else 'campo-arquivo' }}"
+               class="block w-full bg-lima hover:bg-lima-claro text-tinta font-extrabold text-lg py-4 rounded-2xl cursor-pointer shadow-lg shadow-lima/20">{{ e.botao }}</label>
+        <label for="{{ 'campo-arquivo' if t.botao_camera else 'campo-camera' }}" class="inline-block text-sm text-slate-300 underline cursor-pointer -mt-2">{{ t.link }}</label>
+        <button type="button" id="btn-exemplo" class="w-full border border-slate-600 hover:border-lima text-white font-semibold py-3 rounded-2xl">✨ {{ e.secundario }}</button>
+        <p class="text-sm text-slate-400">🔓 Sem cadastro para testar.</p>
+        <p id="erro" class="text-sm text-red-400 min-h-[1.25rem]" aria-live="polite"></p>
+        <p class="text-xs text-slate-500">Já tem conta? <a href="{{ url_for('login') }}" class="underline">Entrar</a></p>
+    </div>
+
+    <!-- 2. Processando -->
+    <div id="etapa-processando" class="hidden text-center space-y-4 py-10">
+        <div class="mx-auto w-14 h-14 rounded-full border-4 border-slate-700 border-t-lima animate-spin"></div>
+        <p class="text-lg font-semibold">{{ t.processando }}</p>
+        <p class="text-sm text-slate-400">Leva até 1 minuto. Não feche esta tela.</p>
+    </div>
+
+    <!-- 3. Prévia: as 3 primeiras questões -->
+    <div id="etapa-previa" class="hidden space-y-4">
+        <div class="text-center">
+            <h2 class="text-xl font-extrabold" id="titulo-previa"></h2>
+            <p class="text-sm text-slate-400">Responda as 3 primeiras agora. 👇</p>
+        </div>
+        <div id="questoes" class="space-y-4"></div>
+    </div>
+
+    <!-- 4. Pedido de conta -->
+    <div id="etapa-conta" class="hidden space-y-4">
+        <div class="text-center">
+            <h2 class="text-xl font-extrabold" id="titulo-conta"></h2>
+            <p class="text-sm text-slate-300 mt-1" id="sub-conta"></p>
+        </div>
+        <form method="post" action="{{ url_for('cadastro') }}" class="space-y-3">
+            <input type="hidden" name="teste" value="1">
+            <input type="hidden" name="p" value="{{ publico }}">
+            <input name="email" type="email" required autocomplete="email" autocapitalize="none" maxlength="120" placeholder="Seu e-mail"
+                   class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
+            <input name="senha" type="password" required minlength="8" autocomplete="new-password" placeholder="Crie uma senha (mín. 8 caracteres)"
+                   class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
+            <input name="whatsapp" type="tel" inputmode="tel" autocomplete="tel" maxlength="20" placeholder="WhatsApp (opcional)"
+                   class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
+            <label class="flex items-start gap-2 text-xs text-slate-400 cursor-pointer">
+                <input type="checkbox" name="whatsapp_ok" value="1" class="accent-lima w-4 h-4 mt-0.5">
+                <span>Autorizo o Quizzify a me enviar mensagens no WhatsApp sobre o meu teste grátis (no máximo 2). Posso cancelar respondendo SAIR.</span>
+            </label>
+            <button class="w-full bg-lima hover:bg-lima-claro text-tinta font-extrabold text-lg py-4 rounded-2xl">{{ e.salvar }}</button>
+        </form>
+        <p class="text-xs text-center text-slate-500">Ao criar a conta, você concorda com os <a href="{{ url_for('pagina_termos') }}" class="underline">Termos</a>
+            e a <a href="{{ url_for('pagina_privacidade') }}" class="underline">Política de privacidade</a>.</p>
+    </div>
+</section>
+{% endblock %}
+{% block scripts %}<script src="{{ url_for('static', filename='js/experimentar.js') }}?v=1" defer></script>{% endblock %}

@@ -96,7 +96,7 @@
             <table class="w-full text-sm">
                 <thead class="bg-slate-900 text-slate-400 text-xs"><tr>
                     <th class="text-left p-2">Origem</th><th class="p-2">Cadastros</th><th class="p-2">Em 24 h</th>
-                    <th class="p-2">Criaram (total)</th><th class="p-2">Viram exemplo</th></tr></thead>
+                    <th class="p-2">Criaram (total)</th><th class="p-2">Viram exemplo</th><th class="p-2">Testaram sem conta</th></tr></thead>
                 <tbody>
                 {% for origem, l in ra.linhas.items() if l.cadastros %}
                 <tr class="border-t border-slate-800">
@@ -106,12 +106,13 @@
                         <span class="block text-[11px] text-slate-500">{{ (100 * l.ativ24 / l.cadastros) | round | int }}%</span></td>
                     <td class="p-2 text-center">{{ l.ativou }}</td>
                     <td class="p-2 text-center">{{ l.exemplo }}</td>
+                    <td class="p-2 text-center">{{ l.sem_conta }}</td>
                 </tr>
                 {% endfor %}
                 <tr class="border-t border-slate-600 font-bold">
                     <td class="p-2">Total</td><td class="p-2 text-center">{{ ra.total.cadastros }}</td>
                     <td class="p-2 text-center">{{ ra.total.ativ24 }}<span class="block text-[11px] text-slate-500 font-normal">{{ (100 * ra.total.ativ24 / ra.total.cadastros) | round | int }}%</span></td>
-                    <td class="p-2 text-center">{{ ra.total.ativou }}</td><td class="p-2 text-center">{{ ra.total.exemplo }}</td>
+                    <td class="p-2 text-center">{{ ra.total.ativou }}</td><td class="p-2 text-center">{{ ra.total.exemplo }}</td><td class="p-2 text-center">{{ ra.total.sem_conta }}</td>
                 </tr>
                 </tbody>
             </table>
@@ -187,6 +188,7 @@
                     {% else %}<p>⚡ Ainda não criou quiz{% if conta.exemplo_em %} · viu o exemplo em {{ conta.exemplo_em | data_hora }}{% endif %}</p>{% endif %}
                     {% if conta.plano or conta.assinado_em %}<p>💳 Plano: {{ conta.plano or '—' }}{% if conta.assinado_em %} · assinou em {{ conta.assinado_em | data_hora }}{% endif %}{% if conta.ultimo_pagamento_em and conta.ultimo_pagamento_em != conta.assinado_em %} · último pagamento {{ conta.ultimo_pagamento_em | data_hora }}{% endif %}</p>{% endif %}
                     {% if conta.cancelado_em %}<p class="text-red-300">🚫 Cancelou em {{ conta.cancelado_em | data_hora }}</p>{% endif %}
+                    {% if conta.experimentou_sem_conta %}<p>🔓 Testou antes de criar a conta (/experimentar)</p>{% endif %}
                     {% if conta.whatsapp %}<p>💬 WhatsApp: +{{ conta.whatsapp }} (autorizado em {{ conta.whatsapp_consentimento_em | data_hora }})</p>{% endif %}
                 </div>
                 {% if conta.pago_ate and not conta.cancelado_em %}

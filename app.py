@@ -817,7 +817,7 @@ def ler_metricas():
 @app.before_request
 def registrar_origem():
     if request.method != "GET" or request.endpoint in (None, "static", "health", "service_worker", "manifesto",
-                                                       "demo", "demo_video", "tarefa_lembretes", "divulgacao_js") or eh_robo():
+                                                       "demo", "demo_video", "tarefa_lembretes", "tarefa_ativacao", "divulgacao_js") or eh_robo():
         return
     pedida = origem_valida(request.args.get("origem"))
     guardada = origem_valida(request.cookies.get(COOKIE_ORIGEM))
@@ -1180,12 +1180,20 @@ def cadastro():
             flash("Já existe uma conta com este e-mail. Entre com a sua senha.", "erro")
             return redirect(url_for("login", proximo=url_for("assinatura", plano=plano_id) if plano_id else None))
         registrar_tentativa(_cadastros, ip, agora)
+        exp_id = session.get("experimento") if gratis else None
         entrar_na_sessao(email, nova)
         pixel("CompleteRegistration", content_name="teste_gratis" if gratis else (plano_id or "conta"))
         if gratis:
             pixel("StartTrial", value=0, currency="BRL")
             pixel("Lead", content_name="teste_gratis")     # objetivo "Cadastros/Leads" da Meta otimiza por este evento
             agendar_ativacao_15m(email)       # 1º e-mail de ativação em 15 min (só se ainda não criou quiz)
+            if exp_id:                        # veio do /experimentar: salva o quiz que já fez
+                try:
+                    item = salvar_experimento(email, exp_id)
+                    if item:
+                        return redirect(url_for("quiz_salvo", i=item["id"]))
+                except Exception:
+                    log.exception("Falha ao salvar o quiz feito sem conta para %s", email)
             return redirect(url_for("comecar", p=publico_id or None))
         # Veio da landing com um plano escolhido: vai direto para o pagamento dele.
         if plano_id and INFINITEPAY_HANDLE:
@@ -2586,7 +2594,7 @@ def quiz_de_exemplo(publico):
             return _exemplos_cache[publico]
         caminho = f"exemplos/{publico}.json"
         dados, _ = ler_json_versionado(caminho)
-        if not dados or not dados.get("link"):
+        if not dados or not dados.get("link") or not dados.get("itens"):
             titulo, texto = MATERIAL_EXEMPLO[publico]
             itens = normalizar_quiz(chamar_gemini(PROMPT_QUIZ.format(n=10), texto, []), 10)
             if not itens:
@@ -2594,7 +2602,7 @@ def quiz_de_exemplo(publico):
             html = render_template("quiz.html", titulo=f"Exemplo: {titulo}", professor="", itens=itens,
                                    divulgacao_js=f"{URL_APP}/divulgacao.js?tipo=quiz")
             link, arquivo = publicar_firebase(html, "quiz")
-            dados = {"titulo": f"Exemplo: {titulo}", "link": link, "arquivo": arquivo, "total": len(itens)}
+            dados = {"titulo": f"Exemplo: {titulo}", "link": link, "arquivo": arquivo, "total": len(itens), "itens": itens}
             gravar_json_versionado(caminho, dados)
         _exemplos_cache[publico] = dados
         return dados
@@ -2641,6 +2649,151 @@ def gerar_exemplo():
     except Exception:
         log.exception("Falha ao marcar exemplo de %s", usuario)
     return jsonify(link=dados["link"], total=dados["total"], exemplo=True)
+
+
+# --------------------------------------------------------------------------- #
+# Fase 2 - quiz antes do cadastro (/experimentar): a pessoa envia o material sem
+# conta, responde 3 questões e cria a conta para salvar o quiz e ver o resto.
+# O evento Lead do pixel continua no cadastro.
+# --------------------------------------------------------------------------- #
+EXPERIMENTAR = {
+    "pais": {"titulo": "Tire uma foto do caderno e veja o quiz em 1 minuto", "botao": "📸 Tirar foto do caderno",
+             "secundario": "Usar uma lição de exemplo", "salvar": "Salvar meu quiz", "palavra": "quiz", "itens": "perguntas"},
+    "concursos": {"titulo": "Envie seu PDF e veja as questões em 1 minuto", "botao": "📄 Enviar meu PDF",
+                  "secundario": "Usar uma apostila de exemplo", "salvar": "Salvar meu simulado", "palavra": "simulado", "itens": "questões"},
+}
+LIMITE_EXPERIMENTOS_IP_DIA = 3
+_experimentos_ip = {}
+
+
+@app.get("/experimentar")
+def experimentar():
+    publico = request.args.get("p") if request.args.get("p") in EXPERIMENTAR else "concursos"
+    if session.get("usuario"):
+        return redirect(url_for("comecar", p=publico))
+    return render_template("experimentar.html", publico=publico, t=COMECAR[publico], e=EXPERIMENTAR[publico],
+                           cota=TESTE_GRATIS_QUIZZES, horas=TESTE_GRATIS_HORAS,
+                           max_arquivos=MAX_ARQUIVOS, max_mb=MAX_TOTAL_MB)
+
+
+@app.post("/api/experimentar")
+def api_experimentar():
+    """Gera o quiz sem conta (1 por aparelho por dia; o exemplo é livre) e devolve as 3 primeiras questões."""
+    publico = request.form.get("p") if request.form.get("p") in EXPERIMENTAR else "concursos"
+    exemplo = request.form.get("exemplo") == "1"
+    agora, ip = time.time(), ip_cliente()
+    if exemplo:
+        try:
+            dados = quiz_de_exemplo(publico)
+        except Exception:
+            log.exception("Falha no exemplo sem conta (%s)", publico)
+            return jsonify(erro="Não foi possível abrir o exemplo agora. Tente de novo em instantes."), 502
+        itens, titulo = dados["itens"], dados["titulo"]
+    else:
+        if agora - (session.get("exp_em") or 0) < DIA:
+            return jsonify(erro="Você já gerou um quiz grátis hoje neste aparelho. Crie a sua conta grátis para continuar.",
+                           cadastrar=True), 429
+        with _trava_contadores:
+            recentes = [t for t in _experimentos_ip.get(ip, []) if agora - t < DIA]
+            _experimentos_ip[ip] = recentes
+            if len(recentes) >= LIMITE_EXPERIMENTOS_IP_DIA:
+                return jsonify(erro="Limite de testes sem conta atingido nesta rede. Crie a sua conta grátis para continuar.",
+                               cadastrar=True), 429
+        arquivos = [a for a in request.files.getlist("arquivos") if a and a.filename]
+        if not arquivos:
+            return jsonify(erro="Envie pelo menos um arquivo ou foto."), 400
+        if len(arquivos) > MAX_ARQUIVOS:
+            return jsonify(erro=f"Envie no máximo {MAX_ARQUIVOS} arquivos de cada vez."), 400
+        if any(extensao(a.filename) not in EXTENSOES_DOC | EXTENSOES_IMG and not (a.mimetype or "").startswith("image/")
+               for a in arquivos):
+            return jsonify(erro="Formato não suportado. Use foto, PDF, Word ou PowerPoint."), 400
+        with vaga_geracao() as tem_vaga:
+            if not tem_vaga:
+                return jsonify(erro="Muitas pessoas gerando quizzes agora. Tente de novo em 1 minuto."), 503
+            try:
+                texto, partes = preparar_conteudo(arquivos)
+            except Exception:
+                log.exception("Falha na extração (sem conta)")
+                return jsonify(erro="Não foi possível ler um dos arquivos. Verifique se não está corrompido."), 422
+            if not texto and not partes:
+                return jsonify(erro="Não encontrei texto nos arquivos enviados."), 422
+            try:
+                itens = normalizar_quiz(chamar_gemini(PROMPT_QUIZ.format(n=10), texto, partes), 10)
+            except Exception:
+                log.exception("Falha na geração com IA (sem conta)")
+                return jsonify(erro="A IA não conseguiu gerar o conteúdo. Tente novamente."), 502
+        if not itens:
+            return jsonify(erro="A IA devolveu um resultado vazio. Tente novamente."), 502
+        titulo = COMECAR[publico]["titulo_quiz"]
+        session["exp_em"] = agora
+        with _trava_contadores:
+            _experimentos_ip.setdefault(ip, []).append(agora)
+    exp_id = uuid.uuid4().hex
+    try:
+        gravar_json_versionado(f"experimentos/{exp_id}.json", {"itens": itens, "titulo": titulo, "publico": publico,
+                                                               "exemplo": exemplo, "criado_em": agora}, 0)
+    except Exception:
+        log.exception("Falha ao guardar experimento")
+        return jsonify(erro="Não foi possível guardar o quiz agora. Tente novamente."), 503
+    session["experimento"] = exp_id
+    try:
+        somar_metricas(origem_atual(), testes=1)
+    except Exception:
+        pass
+    return jsonify(id=exp_id, titulo=titulo, total=len(itens), exemplo=exemplo, previa=itens[:3])
+
+
+def salvar_experimento(nome, exp_id):
+    """Depois do cadastro: publica o quiz feito sem conta, põe no histórico e conta como o 1º do teste
+    (o exemplo não conta). Devolve o item do histórico ou None."""
+    if not exp_id or not re.fullmatch(r"[0-9a-f]{32}", exp_id):
+        return None
+    caminho = f"experimentos/{exp_id}.json"
+    dados, geracao = ler_json_versionado(caminho)
+    if not dados or dados.get("usado_por"):
+        return None
+    dados["usado_por"] = nome
+    try:
+        gravar_json_versionado(caminho, dados, geracao)
+    except Exception:
+        return None                                   # já salvo por outra requisição
+    html = render_template("quiz.html", titulo=dados["titulo"], professor="", itens=dados["itens"],
+                           divulgacao_js=f"{URL_APP}/divulgacao.js?tipo=quiz")
+    link, arquivo = publicar_firebase(html, "quiz")
+    item = {"id": uuid.uuid4().hex[:12], "titulo": dados["titulo"], "tipo": "quiz", "total": len(dados["itens"]),
+            "link": link, "arquivo": arquivo, "criado_em": time.time(), "exemplo": bool(dados.get("exemplo")),
+            "sem_conta": True}
+    registrar_no_historico(nome, item)
+
+    def contar(usuarios):
+        c = usuarios.get(nome)
+        if not c:
+            return False
+        c["experimentou_sem_conta"] = True
+        if dados.get("exemplo"):
+            c.setdefault("exemplo_em", time.time())
+        else:
+            c["teste_usados"] = c.get("teste_usados", 0) + 1
+            c.setdefault("primeiro_quiz_em", time.time())
+        return c
+    c = alterar_usuarios(contar)
+    if c:
+        session["teste_usados"] = c.get("teste_usados", 0)
+    return item
+
+
+@app.get("/salvo")
+@login_obrigatorio
+def quiz_salvo():
+    item = _item_do_usuario(request.args.get("i", "")) if request.args.get("i") else None
+    if not item:
+        return redirect(url_for("comecar"))
+    conta = carregar_usuarios().get(session["usuario"]) or {}
+    cota = conta.get("teste_cota")
+    restam = max(0, cota - (conta.get("teste_usados") or 0)) if cota is not None and conta.get("expira_em") else None
+    publico = publico_da_conta(conta)
+    return render_template("salvo.html", item=item, restam=restam, publico=publico, t=COMECAR[publico],
+                           horas=conta.get("teste_horas") or TESTE_GRATIS_HORAS)
 
 
 # ---- link mágico (entra sem senha, a partir dos e-mails) ----
@@ -2857,7 +3010,7 @@ def preencher_primeiro_quiz(usuarios):
 
 def resumo_ativacao(usuarios):
     """Cadastros do teste grátis por origem: quantos criaram o 1º quiz em até 24 h."""
-    linhas = {o: {"cadastros": 0, "ativ24": 0, "ativou": 0, "exemplo": 0} for o in ORIGENS_ATIVACAO + ("outras",)}
+    linhas = {o: {"cadastros": 0, "ativ24": 0, "ativou": 0, "exemplo": 0, "sem_conta": 0} for o in ORIGENS_ATIVACAO + ("outras",)}
     for c in usuarios.values():
         if not c.get("teste_site") or c.get("admin"):
             continue
@@ -2871,7 +3024,9 @@ def resumo_ativacao(usuarios):
             l["ativ24"] += 1
         if c.get("exemplo_em"):
             l["exemplo"] += 1
-    total = {k: sum(l[k] for l in linhas.values()) for k in ("cadastros", "ativ24", "ativou", "exemplo")}
+        if c.get("experimentou_sem_conta"):
+            l["sem_conta"] += 1
+    total = {k: sum(l[k] for l in linhas.values()) for k in ("cadastros", "ativ24", "ativou", "exemplo", "sem_conta")}
     return {"linhas": linhas, "total": total}
 
 
