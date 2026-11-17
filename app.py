@@ -97,6 +97,22 @@ def asset(caminho):
 
 
 app.jinja_env.globals["asset"] = asset
+_css_embutido = None
+
+
+def css_embutido():
+    """CSS do app dentro do próprio HTML (páginas de entrada dos anúncios): nada bloqueia a renderização."""
+    global _css_embutido
+    if _css_embutido is None:
+        try:
+            with open(os.path.join(app.static_folder, "css/app.css"), encoding="utf-8") as f:
+                _css_embutido = f.read()
+        except OSError:
+            _css_embutido = ""
+    return _css_embutido
+
+
+app.jinja_env.globals["css_embutido"] = css_embutido
 
 
 @app.get("/a/<versao>/<path:arquivo>")
@@ -1179,6 +1195,7 @@ CACHE_CADASTRO_SEGUNDOS = 600
 def pagina_cadastro_em_cache(ctx, chave):
     """Visitante anônimo sem avisos pendentes recebe o HTML já pronto. O cookie de origem continua sendo
     gravado no after_request, então ?origem= segue chegando ao cadastro e ao /admin."""
+    ctx = dict(ctx, css_inline=True)
     if session.get("usuario") or session.get("_flashes") or session.get("pixel"):
         return render_template("cadastro.html", **ctx)
     guardado = _cache_cadastro.get(chave)
@@ -2747,7 +2764,7 @@ def experimentar():
     publico = request.args.get("p") if request.args.get("p") in EXPERIMENTAR else "concursos"
     if session.get("usuario"):
         return redirect(url_for("comecar", p=publico))
-    return render_template("experimentar.html", publico=publico, t=COMECAR[publico], e=EXPERIMENTAR[publico],
+    return render_template("experimentar.html", css_inline=True, publico=publico, t=COMECAR[publico], e=EXPERIMENTAR[publico],
                            cota=TESTE_GRATIS_QUIZZES, horas=TESTE_GRATIS_HORAS,
                            max_arquivos=MAX_ARQUIVOS, max_mb=MAX_TOTAL_MB)
 

@@ -12,7 +12,8 @@
     {#- Marca: roxo #5920AB, verde-limão #C1FC38, tinta #24133E. As cores vêm de variáveis CSS
         (uma lista por tema, abaixo); a escala "slate" do Tailwind usa essas variáveis (tailwind.config.js).
         CSS gerado no build: npm run css -> static/css/app.css #}
-    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+    {% if css_inline and css_embutido() %}<style>{{ css_embutido() | safe }}</style>
+    {% else %}<link rel="stylesheet" href="{{ asset('css/app.css') }}">{% endif %}
     <link rel="preload" href="{{ asset('fonts/plus-jakarta-sans-400.woff2') }}" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="{{ asset('fonts/plus-jakarta-sans-800.woff2') }}" as="font" type="font/woff2" crossorigin>
     <style>
