@@ -21,19 +21,19 @@
 {#- Dados estruturados: ajudam o Google a entender que "Quizzify" (e a grafia "Quizify") é esta marca/app. #}
 <script type="application/ld+json">{{ dados_estruturados | tojson }}</script>
 <meta name="theme-color" content="#000000">
-<link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/favicon-32.png') }}">
-<link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ asset('icons/favicon-32.png') }}">
+<link rel="apple-touch-icon" href="{{ asset('icons/apple-touch-icon.png') }}">
 {#- Fontes servidas pelo próprio app (sem ir ao Google): abre mais rápido vindo de anúncios. #}
-<link rel="preload" href="{{ url_for('static', filename='fonts/barlow-condensed-800.woff2') }}" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="{{ url_for('static', filename='fonts/plus-jakarta-sans-400.woff2') }}" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="{{ url_for('static', filename='fonts/plus-jakarta-sans-800.woff2') }}" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="{{ asset('fonts/barlow-condensed-800.woff2') }}" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="{{ asset('fonts/plus-jakarta-sans-400.woff2') }}" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="{{ asset('fonts/plus-jakarta-sans-800.woff2') }}" as="font" type="font/woff2" crossorigin>
 <style>
     @font-face { font-family: "Barlow Condensed"; font-weight: 800; font-display: swap;
-                 src: url("{{ url_for('static', filename='fonts/barlow-condensed-800.woff2') }}") format("woff2"); }
+                 src: url("{{ asset('fonts/barlow-condensed-800.woff2') }}") format("woff2"); }
     @font-face { font-family: "Plus Jakarta Sans"; font-weight: 400; font-display: swap;
-                 src: url("{{ url_for('static', filename='fonts/plus-jakarta-sans-400.woff2') }}") format("woff2"); }
+                 src: url("{{ asset('fonts/plus-jakarta-sans-400.woff2') }}") format("woff2"); }
     @font-face { font-family: "Plus Jakarta Sans"; font-weight: 800; font-display: swap;
-                 src: url("{{ url_for('static', filename='fonts/plus-jakarta-sans-800.woff2') }}") format("woff2"); }
+                 src: url("{{ asset('fonts/plus-jakarta-sans-800.woff2') }}") format("woff2"); }
     :root {
         --preto: #000;
         --roxo: #5920ab;

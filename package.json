@@ -1,0 +1,24 @@
+{
+  "name": "repo-quiz",
+  "version": "1.0.0",
+  "description": "Transforma PDF, Word, PowerPoint e fotos (at\u00e9 5 de cada vez) em quizzes e flashcards interativos com o Google Gemini. O resultado \u00e9 um HTML aut\u00f4nomo publicado no Firebase (link para Android, iOS e computador) e que tamb\u00e9m pode ser baixado para uso offline.",
+  "main": "index.js",
+  "scripts": {
+    "css": "tailwindcss -i ./src/input.css -o ./static/css/app.css --minify"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aureliocoelho2004-ai/novo-quiz-ia.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/aureliocoelho2004-ai/novo-quiz-ia/issues"
+  },
+  "homepage": "https://github.com/aureliocoelho2004-ai/novo-quiz-ia#readme",
+  "devDependencies": {
+    "tailwindcss": "^3.4.16"
+  },
+  "private": true
+}

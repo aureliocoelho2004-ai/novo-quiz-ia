@@ -18,7 +18,7 @@ from datetime import datetime, timedelta, timezone
 from functools import wraps
 
 import requests
-from flask import (Flask, Response, abort, flash, g, has_request_context, jsonify, redirect,
+from flask import (send_from_directory, Flask, Response, abort, flash, g, has_request_context, jsonify, redirect,
                    render_template, request, session, url_for)
 from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
 from werkzeug.exceptions import RequestEntityTooLarge
@@ -64,7 +64,46 @@ app.config.update(
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=bool(os.environ.get("RENDER")),  # Render serve sempre por HTTPS
     PERMANENT_SESSION_LIFETIME=60 * 60 * 24 * 7,
+    # Compressão das respostas (brotli quando o navegador aceita, senão gzip)
+    COMPRESS_ALGORITHM=["br", "gzip"],
+    COMPRESS_MIMETYPES=["text/html", "text/css", "text/javascript", "application/javascript", "application/json",
+                        "image/svg+xml", "application/manifest+json", "text/csv"],
+    COMPRESS_MIN_SIZE=500,
+    SEND_FILE_MAX_AGE_DEFAULT=3600,
 )
+try:
+    from flask_compress import Compress
+    Compress(app)
+except ImportError:                                   # sem a biblioteca, o app funciona sem compressão
+    pass
+
+# Arquivos estáticos com a versão no caminho (/a/<versão>/css/app.css): o navegador guarda por 1 ano
+# e, quando o arquivo muda, a versão (hash do conteúdo) muda junto e o link novo é baixado.
+_versoes_estaticos = {}
+
+
+def versao_estatico(caminho):
+    if caminho not in _versoes_estaticos:
+        try:
+            with open(os.path.join(app.static_folder, caminho), "rb") as f:
+                _versoes_estaticos[caminho] = hashlib.md5(f.read()).hexdigest()[:10]
+        except OSError:
+            return "0"
+    return _versoes_estaticos[caminho]
+
+
+def asset(caminho):
+    return url_for("estatico_versionado", versao=versao_estatico(caminho), arquivo=caminho)
+
+
+app.jinja_env.globals["asset"] = asset
+
+
+@app.get("/a/<versao>/<path:arquivo>")
+def estatico_versionado(versao, arquivo):
+    resposta = send_from_directory(app.static_folder, arquivo, max_age=31536000)
+    resposta.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+    return resposta
 
 
 def _chave_secreta():
@@ -814,10 +853,21 @@ def ler_metricas():
     return sorted(linhas, key=lambda l: (-l["pagamentos"], -l["contas"], -l["visitantes"]))
 
 
+def _em_segundo_plano(funcao, *args, **kwargs):
+    """Executa sem segurar a resposta (gravações de métricas no Firebase)."""
+    def tarefa():
+        try:
+            funcao(*args, **kwargs)
+        except Exception:
+            log.exception("Falha em tarefa de segundo plano %s", getattr(funcao, "__name__", funcao))
+    threading.Thread(target=tarefa, daemon=True).start()
+
+
 @app.before_request
 def registrar_origem():
     if request.method != "GET" or request.endpoint in (None, "static", "health", "service_worker", "manifesto",
-                                                       "demo", "demo_video", "tarefa_lembretes", "tarefa_ativacao", "divulgacao_js") or eh_robo():
+                                                       "demo", "demo_video", "tarefa_lembretes", "tarefa_ativacao", "divulgacao_js",
+                                                       "estatico_versionado") or eh_robo():
         return
     pedida = origem_valida(request.args.get("origem"))
     guardada = origem_valida(request.cookies.get(COOKIE_ORIGEM))
@@ -826,7 +876,7 @@ def registrar_origem():
     elif not pedida and not guardada and request.endpoint == "assine":
         g.nova_origem = origem_atual()           # chegou à /assine sem link marcado
     if g.get("nova_origem"):
-        somar_metricas(g.nova_origem, visitantes=1)
+        _em_segundo_plano(somar_metricas, g.nova_origem, visitantes=1)
 
 
 @app.after_request
@@ -1122,6 +1172,26 @@ def normalizar_whatsapp(texto):
     return d if d.startswith("55") and len(d) in (12, 13) else None
 
 
+_cache_cadastro = {}
+CACHE_CADASTRO_SEGUNDOS = 600
+
+
+def pagina_cadastro_em_cache(ctx, chave):
+    """Visitante anônimo sem avisos pendentes recebe o HTML já pronto. O cookie de origem continua sendo
+    gravado no after_request, então ?origem= segue chegando ao cadastro e ao /admin."""
+    if session.get("usuario") or session.get("_flashes") or session.get("pixel"):
+        return render_template("cadastro.html", **ctx)
+    guardado = _cache_cadastro.get(chave)
+    if guardado and time.time() - guardado[0] < CACHE_CADASTRO_SEGUNDOS:
+        resposta = app.response_class(guardado[1], mimetype="text/html")
+        resposta.headers["X-Cache"] = "HIT"
+        return resposta
+    html = render_template("cadastro.html", **ctx)
+    if not session.get("_flashes"):
+        _cache_cadastro[chave] = (time.time(), html)
+    return html
+
+
 @app.route("/cadastro", methods=["GET", "POST"])
 def cadastro():
     plano_id = plano_escolhido()
@@ -1132,7 +1202,7 @@ def cadastro():
     ctx = dict(plano_id=plano_id, planos=PLANOS, gratis=gratis, horas=TESTE_GRATIS_HORAS, cota=TESTE_GRATIS_QUIZZES,
                publico_id=publico_id, publico=PUBLICOS.get(publico_id))
     if request.method == "GET":
-        return render_template("cadastro.html", **ctx)
+        return pagina_cadastro_em_cache(ctx, (publico_id, gratis, plano_id))
 
     email = request.form.get("email", "").strip().lower()
     senha = request.form.get("senha", "")

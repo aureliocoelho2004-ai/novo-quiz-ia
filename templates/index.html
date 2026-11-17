@@ -85,7 +85,7 @@
 
 {% if video_tutorial and not recentes %}
 <a href="{{ video_tutorial }}" target="_blank" rel="noopener" class="mt-8 flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-900 p-3 hover:border-lima">
-    <img src="{{ url_for('static', filename='img/video-tutorial.jpg') }}" alt="" class="w-28 rounded-lg">
+    <img src="{{ asset('img/video-tutorial.jpg') }}" alt="" class="w-28 rounded-lg">
     <span class="text-sm"><b>▶ Primeira vez aqui?</b><br><span class="text-slate-400">Veja em 6 minutos como usar tudo.</span></span>
 </a>
 {% endif %}
@@ -104,5 +104,5 @@
 {% endblock %}
 
 {% block scripts %}
-<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script src="{{ asset('js/main.js') }}"></script>
 {% endblock %}

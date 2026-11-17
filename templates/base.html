@@ -9,28 +9,17 @@
         window.CORES_BARRA = {"quizify": "#160B29", "classico": "#0f172a", "oceano": "#071426", "sol": "#1a080b", "claro": "#F6F2FD"};
         try { var t = localStorage.getItem('quizify-tema'); if (t && window.CORES_BARRA[t]) document.documentElement.dataset.tema = t; } catch (e) {}
     </script>
-    <script src="https://cdn.tailwindcss.com/3.4.16"></script>
     {#- Marca: roxo #5920AB, verde-limão #C1FC38, tinta #24133E. As cores vêm de variáveis CSS
-        (uma lista por tema, abaixo); a escala "slate" do Tailwind usa essas variáveis. #}
-    <script>
-        const cor = (v) => `rgb(var(--${v}) / <alpha-value>)`;
-        tailwind.config = { theme: { extend: {
-            colors: {
-                slate: Object.fromEntries([50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950].map((n) => [n, cor('s' + n)])),
-                lima: { DEFAULT: cor('lima'), claro: cor('lima-claro') },
-                roxo: '#5920AB',
-                tinta: cor('tinta'),
-            },
-            fontFamily: { sans: ['Jakarta', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'sans-serif'] },
-        } } };
-    </script>
-    <link rel="preload" href="{{ url_for('static', filename='fonts/plus-jakarta-sans-400.woff2') }}" as="font" type="font/woff2" crossorigin>
-    <link rel="preload" href="{{ url_for('static', filename='fonts/plus-jakarta-sans-800.woff2') }}" as="font" type="font/woff2" crossorigin>
+        (uma lista por tema, abaixo); a escala "slate" do Tailwind usa essas variáveis (tailwind.config.js).
+        CSS gerado no build: npm run css -> static/css/app.css #}
+    <link rel="stylesheet" href="{{ asset('css/app.css') }}">
+    <link rel="preload" href="{{ asset('fonts/plus-jakarta-sans-400.woff2') }}" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="{{ asset('fonts/plus-jakarta-sans-800.woff2') }}" as="font" type="font/woff2" crossorigin>
     <style>
         @font-face { font-family: Jakarta; font-weight: 400 500; font-display: swap;
-                     src: url("{{ url_for('static', filename='fonts/plus-jakarta-sans-400.woff2') }}") format("woff2"); }
+                     src: url("{{ asset('fonts/plus-jakarta-sans-400.woff2') }}") format("woff2"); }
         @font-face { font-family: Jakarta; font-weight: 600 900; font-display: swap;
-                     src: url("{{ url_for('static', filename='fonts/plus-jakarta-sans-800.woff2') }}") format("woff2"); }
+                     src: url("{{ asset('fonts/plus-jakarta-sans-800.woff2') }}") format("woff2"); }
         :root { --s50: 246 242 253; --s100: 241 235 251; --s200: 226 215 245; --s300: 210 196 236; --s400: 185 168 217; --s500: 156 136 196; --s600: 91 67 136; --s700: 61 39 102; --s800: 36 19 62; --s900: 26 14 46; --s950: 16 7 31; --lima: 193 252 56; --lima-claro: 212 255 107; --tinta: 36 19 62; --fundo: radial-gradient(1200px 600px at 50% -200px, #3a1d6e 0%, #160B29 60%) fixed, #160B29; }
         :root[data-tema="classico"] { --s50: 248 250 252; --s100: 241 245 249; --s200: 226 232 240; --s300: 203 213 225; --s400: 148 163 184; --s500: 100 116 139; --s600: 71 85 105; --s700: 51 65 85; --s800: 30 41 59; --s900: 15 23 42; --s950: 2 6 23; --lima: 239 68 68; --lima-claro: 220 38 38; --tinta: 255 255 255; --fundo: #0f172a; }
         :root[data-tema="oceano"] { --s50: 239 247 255; --s100: 230 241 251; --s200: 207 227 245; --s300: 181 208 234; --s400: 143 177 211; --s500: 111 147 184; --s600: 62 95 132; --s700: 36 66 95; --s800: 18 38 61; --s900: 11 26 46; --s950: 6 16 30; --lima: 34 211 238; --lima-claro: 103 232 249; --tinta: 6 32 51; --fundo: radial-gradient(1200px 600px at 50% -200px, #12406b 0%, #071426 60%) fixed, #071426; }
@@ -50,8 +39,8 @@
     <link rel="manifest" href="{{ url_for('manifesto') }}">
     <meta name="theme-color" content="#160B29" id="cor-barra">
     <script>try { document.getElementById("cor-barra").content = window.CORES_BARRA[document.documentElement.dataset.tema || "quizify"]; } catch (e) {}</script>
-    <link rel="icon" type="image/png" sizes="32x32" href="{{ url_for('static', filename='icons/favicon-32.png') }}">
-    <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="{{ asset('icons/favicon-32.png') }}">
+    <link rel="apple-touch-icon" href="{{ asset('icons/apple-touch-icon.png') }}">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-title" content="Quizzify">
@@ -65,8 +54,8 @@
                 class="absolute top-3 right-3 w-10 h-10 rounded-full bg-slate-900 border border-slate-700 text-lg flex items-center justify-center hover:border-lima">🎨</button>
         <header class="text-center mb-6">
             <h1 class="flex justify-center"><a href="{{ url_for('index') }}">
-                <img src="{{ url_for('static', filename='img/quizzify-nome.svg') }}" alt="quizzify." width="185" height="47" class="logo-padrao h-11 w-auto">
-                <img src="{{ url_for('static', filename='img/quizzify-nome-claro.svg') }}" alt="quizzify." width="185" height="47" class="logo-claro h-11 w-auto" loading="lazy">
+                <img src="{{ asset('img/quizzify-nome.svg') }}" alt="quizzify." width="185" height="47" class="logo-padrao h-11 w-auto">
+                <img src="{{ asset('img/quizzify-nome-claro.svg') }}" alt="quizzify." width="185" height="47" class="logo-claro h-11 w-auto" loading="lazy">
                 <span class="logo-classico text-3xl font-extrabold tracking-wide" style="color:#ef4444">🎲 Quizzify</span>
             </a></h1>
             <p class="text-sm text-slate-400 mt-1">Transforme documentos em quizzes e flashcards interativos com IA</p>
@@ -89,7 +78,7 @@
         {% if instalar_link %}
         <div id="instalar-app" class="hidden mb-4 rounded-xl border border-slate-600 bg-slate-900 p-3 text-sm">
             <div class="flex items-center gap-3">
-                <img src="{{ url_for('static', filename='icons/icon-192.png') }}" alt="" class="w-10 h-10 rounded-xl">
+                <img src="{{ asset('icons/icon-192.png') }}" alt="" class="w-10 h-10 rounded-xl">
                 <p class="flex-1 text-slate-200 leading-snug"><b>Instale o Quizzify</b><br>
                     <span class="text-xs text-slate-400">Ícone na tela inicial, abre mais rápido.</span></p>
                 <button id="instalar-botao" type="button" class="bg-lima hover:bg-lima-claro text-tinta font-bold px-3 py-2 rounded-lg">Instalar</button>
@@ -179,10 +168,10 @@
             </div>
         </div>
     </div>
-    <script src="{{ url_for('static', filename='js/copiar.js') }}"></script>
-    <script src="{{ url_for('static', filename='js/temas.js') }}?v=1"></script>
-    <script src="{{ url_for('static', filename='js/instalar.js') }}?v=2"></script>
-    <script src="{{ url_for('static', filename='js/senha.js') }}?v=1"></script>
+    <script src="{{ asset('js/copiar.js') }}"></script>
+    <script src="{{ asset('js/temas.js') }}"></script>
+    <script src="{{ asset('js/instalar.js') }}"></script>
+    <script src="{{ asset('js/senha.js') }}"></script>
     {% block scripts %}{% endblock %}
 </body>
 </html>
