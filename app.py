@@ -2169,6 +2169,26 @@ FAIXA_JS = """(function () {
     document.addEventListener('click', function (e) {
       if (e.target.closest && e.target.closest('#btn-tudo, #btn-erradas, #btn-recomecar')) mostrar();
     });
+    // Cartão no fim (resultado do quiz / último flashcard): quem acabou de responder é o público mais quente.
+    var alvo = document.getElementById('tela-resultado') || document.getElementById('btn-recomecar');
+    if (alvo && c.fim_link) {
+      st.textContent += '.qz-fim{margin-top:16px;padding:14px;border-radius:14px;background:rgba(193,252,56,.1);'
+        + 'border:1px solid rgba(193,252,56,.45);color:#fff;text-align:center;font:500 14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}'
+        + '.qz-fim b{display:block;font-size:15px;margin-bottom:4px}.qz-fim a{display:inline-block;margin-top:10px;background:#C1FC38;'
+        + 'color:#24133E;font-weight:800;text-decoration:none;padding:9px 16px;border-radius:999px}.qz-fim small{display:block;margin-top:8px;color:#C9B8E8}';
+      var card = document.createElement('div'); card.className = 'qz-fim';
+      var tt = document.createElement('b'); tt.textContent = c.fim_titulo;
+      var tx = document.createElement('span'); tx.textContent = c.fim_texto;
+      var bt = document.createElement('a'); bt.href = c.fim_link; bt.target = '_blank'; bt.rel = 'noopener'; bt.textContent = c.fim_botao;
+      var rp = document.createElement('small'); rp.textContent = 'Feito com Quizzify';
+      card.appendChild(tt); card.appendChild(tx); card.appendChild(document.createElement('br')); card.appendChild(bt); card.appendChild(rp);
+      if (alvo.id === 'tela-resultado') alvo.appendChild(card); else alvo.parentNode.insertBefore(card, alvo.nextSibling);
+      // nos flashcards o cartão acompanha o botão "Recomeçar", que só aparece no último cartão
+      if (alvo.id === 'btn-recomecar') {
+        var sinc = function () { card.style.display = alvo.classList.contains('oculto') ? 'none' : ''; };
+        sinc(); new MutationObserver(sinc).observe(alvo, { attributes: true, attributeFilter: ['class'] });
+      }
+    }
   }
   if (document.body) montar(); else document.addEventListener('DOMContentLoaded', montar);
 })();"""
@@ -2181,6 +2201,10 @@ def divulgacao_js():
     if cfg.get("ligada"):
         dados = {k: str(cfg.get(k) or "")[:160] for k in ("texto", "destaque", "botao")}
         dados["link"] = f"{URL_APP}/assine?origem={tipo}"
+        dados.update(fim_titulo="Gostou deste " + ("quiz?" if tipo == "quiz" else "baralho?"),
+                     fim_texto="Crie um assim com o seu material: foto do caderno, PDF ou só o tema.",
+                     fim_botao=f"Testar grátis por {duracao(TESTE_GRATIS_HORAS)} ➜",
+                     fim_link=f"{URL_APP}/assine?origem={tipo}-fim")
         corpo = FAIXA_JS % json.dumps(dados, ensure_ascii=False).replace("</", "<\\/")
     else:
         corpo = "/* faixa desligada */"
@@ -2516,13 +2540,94 @@ def cache_arquivos_fixos(resposta):
 # admin, quizzes e o resto do app ficam fora (noindex), para o resultado do
 # Google mostrar a página certa.
 # --------------------------------------------------------------------------- #
-PAGINAS_PUBLICAS = {"assine", "robots", "sitemap", "pagina_privacidade", "pagina_termos", "pagina_cancelamento"}
+PAGINAS_PUBLICAS = {"assine", "robots", "sitemap", "pagina_privacidade", "pagina_termos", "pagina_cancelamento",
+                    "quizzes_prontos", "quiz_pronto", "quiz_pronto_jogar"}
+
+
+# ---------- Biblioteca "Quizzes prontos" (páginas para o Google) ----------
+# A lista fica em quizzes_prontos.json (no repositório); as perguntas vêm do próprio
+# quiz publicado no Firebase (QUESTOES dentro do HTML), lidas uma vez e guardadas em memória.
+PUBLICOS_PRONTOS = {"ebd": ("Escola Bíblica Dominical", "📖"), "concursos": ("Concursos", "🎯"),
+                    "escola": ("Escola: Ensino Fundamental e Médio", "🏫")}
+_itens_prontos = {}
+
+
+@app.context_processor
+def dados_landing():
+    return {"landing_url": LANDING_URL}
+
+
+def quizzes_prontos_lista():
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "quizzes_prontos.json"), encoding="utf-8") as f:
+            return [q for q in json.load(f) if q.get("publico") in PUBLICOS_PRONTOS]
+    except Exception:
+        log.exception("Falha ao ler quizzes_prontos.json")
+        return []
+
+
+def itens_quiz_pronto(q):
+    if q["arquivo"] not in _itens_prontos:
+        html = bucket_firebase().blob(q["arquivo"]).download_as_text()
+        m = re.search(r"const QUESTOES = (\[.*?\]);\s*\n", html, re.S)
+        _itens_prontos[q["arquivo"]] = json.loads(m.group(1)) if m else []
+    return _itens_prontos[q["arquivo"]]
+
+
+def _quiz_pronto_ou_404(slug):
+    q = next((q for q in quizzes_prontos_lista() if q["slug"] == slug), None)
+    if not q:
+        abort(404)
+    try:
+        itens = itens_quiz_pronto(q)
+    except Exception:
+        log.exception("Falha ao ler o quiz pronto %s", slug)
+        abort(503)
+    if not itens:
+        abort(404)
+    return q, itens
+
+
+@app.get("/quizzes")
+def quizzes_prontos():
+    lista = quizzes_prontos_lista()
+    grupos = [(chave, nome, emoji, [q for q in lista if q["publico"] == chave])
+              for chave, (nome, emoji) in PUBLICOS_PRONTOS.items()]
+    resposta = Response(render_template("quizzes_prontos.html", grupos=[g for g in grupos if g[3]],
+                                        url_canonica=url_publica("quizzes_prontos"), cota=TESTE_GRATIS_QUIZZES,
+                                        horas=TESTE_GRATIS_HORAS))
+    resposta.headers["Cache-Control"] = "public, max-age=600"
+    return resposta
+
+
+@app.get("/quizzes/<slug>")
+def quiz_pronto(slug):
+    q, itens = _quiz_pronto_ou_404(slug)
+    outros = sorted((o for o in quizzes_prontos_lista() if o["slug"] != slug),
+                    key=lambda o: o.get("publicado", ""), reverse=True)
+    outros.sort(key=lambda o: o["publico"] != q["publico"])      # mesmo público primeiro, mais novos antes
+    resposta = Response(render_template("quiz_pronto.html", q=q, itens=itens, outros=outros[:4],
+                                        publico=PUBLICOS_PRONTOS[q["publico"]],
+                                        url_canonica=url_publica("quiz_pronto", slug=slug),
+                                        cota=TESTE_GRATIS_QUIZZES, horas=TESTE_GRATIS_HORAS))
+    resposta.headers["Cache-Control"] = "public, max-age=600"
+    return resposta
+
+
+@app.get("/quizzes/<slug>/jogar")
+def quiz_pronto_jogar(slug):
+    q, itens = _quiz_pronto_ou_404(slug)
+    resposta = Response(render_template("quiz.html", titulo=q["titulo"], professor="", itens=itens,
+                                        divulgacao_js=url_for("divulgacao_js", tipo="quiz")))
+    resposta.headers["Cache-Control"] = "public, max-age=600"
+    resposta.headers["X-Robots-Tag"] = "noindex"     # quem deve aparecer no Google é a página do quiz
+    return resposta
 
 
 @app.get("/robots.txt")
 def robots():
     texto = ("User-agent: *\n"
-             "Allow: /assine\n"
+             "Allow: /assine\nAllow: /quizzes\n"
              "Disallow: /admin\nDisallow: /api/\nDisallow: /meus-quizzes\nDisallow: /tarefas/\n"
              "Disallow: /webhooks/\nDisallow: /m/\nDisallow: /assinar/\n"
              f"\nSitemap: {url_publica('sitemap')}\n")
@@ -2536,6 +2641,11 @@ def sitemap():
            f'  <url><loc>{url_publica("assine")}</loc><changefreq>weekly</changefreq><priority>1.0</priority></url>\n'
            + "".join(f'  <url><loc>{url_publica(e)}</loc><changefreq>yearly</changefreq><priority>0.3</priority></url>\n'
                      for e in ("pagina_termos", "pagina_privacidade", "pagina_cancelamento")) +
+           f'  <url><loc>{url_publica("quizzes_prontos")}</loc><changefreq>weekly</changefreq><priority>0.9</priority></url>\n'
+           + "".join(f'  <url><loc>{url_publica("quiz_pronto", slug=q["slug"])}</loc>'
+                     + (f'<lastmod>{q["publicado"]}</lastmod>' if q.get("publicado") else "")
+                     + '<changefreq>monthly</changefreq><priority>0.8</priority></url>\n'
+                     for q in quizzes_prontos_lista()) +
            '</urlset>\n')
     return Response(xml, mimetype="application/xml")
 

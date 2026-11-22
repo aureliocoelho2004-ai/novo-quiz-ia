@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{% block titulo %}{% endblock %}</title>
+<meta name="description" content="{% block descricao %}{% endblock %}">
+<link rel="canonical" href="{{ url_canonica }}">
+<meta property="og:url" content="{{ url_canonica }}">
+<meta property="og:type" content="website">
+<meta property="og:title" content="{{ self.titulo() }}">
+<meta property="og:description" content="{{ self.descricao() }}">
+<meta property="og:image" content="{{ url_for('static', filename='img/og-quizzify.png', _external=True) }}">
+<meta property="og:site_name" content="Quizzify">
+<meta property="og:locale" content="pt_BR">
+<meta name="theme-color" content="#160B29">
+<link rel="icon" type="image/png" sizes="32x32" href="{{ asset('icons/favicon-32.png') }}">
+<link rel="apple-touch-icon" href="{{ asset('icons/apple-touch-icon.png') }}">
+{% block extra_head %}{% endblock %}
+<style>
+  @font-face { font-family: Jakarta; font-weight: 400 500; font-display: swap; src: url("{{ asset('fonts/plus-jakarta-sans-400.woff2') }}") format("woff2"); }
+  @font-face { font-family: Jakarta; font-weight: 600 900; font-display: swap; src: url("{{ asset('fonts/plus-jakarta-sans-800.woff2') }}") format("woff2"); }
+  :root { --roxo: #5920AB; --lima: #C1FC38; --tinta: #24133E; --fundo: #160B29; --cartao: #24133E; --linha: #3D2766; --suave: #C9B8E8; }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: Jakarta, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; color: #fff; line-height: 1.55;
+         background: radial-gradient(1200px 600px at 50% -200px, #3a1d6e 0%, #160B29 60%) fixed, #160B29; }
+  a { color: var(--lima); }
+  .topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; max-width: 880px; margin: 0 auto; padding: 16px; }
+  .topo img { height: 34px; width: auto; display: block; }
+  .topo nav a { color: #fff; text-decoration: none; font-weight: 600; font-size: 14px; margin-left: 14px; white-space: nowrap; }
+  @media (max-width: 440px) { .topo img { height: 26px; } .topo nav a { margin-left: 10px; font-size: 13px; } }
+  .conteudo { max-width: 880px; margin: 0 auto; padding: 8px 16px 48px; }
+  h1 { font-size: clamp(26px, 5vw, 38px); line-height: 1.15; margin: 8px 0 12px; font-weight: 900; }
+  h2 { font-size: 22px; margin: 36px 0 12px; font-weight: 800; }
+  .sub { color: var(--suave); font-size: 16px; margin: 0 0 20px; }
+  .selo { display: inline-block; font-size: 12px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; color: var(--tinta);
+          background: var(--lima); border-radius: 999px; padding: 4px 10px; }
+  .cta { background: var(--cartao); border: 1px solid rgba(193,252,56,.45); border-radius: 18px; padding: 20px; margin: 28px 0; }
+  .cta h2 { margin: 0 0 6px; font-size: 20px; }
+  .cta p { margin: 0 0 14px; color: var(--suave); }
+  .botao { display: inline-block; background: var(--lima); color: var(--tinta); font-weight: 800; text-decoration: none;
+           padding: 12px 20px; border-radius: 999px; }
+  .botao.sec { background: transparent; color: #fff; border: 1px solid var(--linha); margin-left: 6px; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+  .card { display: block; background: var(--cartao); border: 1px solid var(--linha); border-radius: 16px; padding: 16px; color: #fff; text-decoration: none; }
+  .card:hover { border-color: var(--lima); }
+  .card b { display: block; font-size: 16px; margin-bottom: 4px; }
+  .card span { color: var(--suave); font-size: 14px; }
+  .rodape { max-width: 880px; margin: 0 auto; padding: 24px 16px 40px; color: var(--suave); font-size: 13px; border-top: 1px solid var(--linha); }
+  .rodape a { color: var(--suave); margin-right: 14px; }
+  {% block estilo %}{% endblock %}
+</style>
+{% include "_pixel.html" %}
+</head>
+<body>
+<header class="topo">
+  <a href="{{ landing_url }}?origem=biblioteca" aria-label="Quizzify, página inicial">
+    <img src="{{ asset('img/quizzify-nome.svg') }}" alt="quizzify." width="185" height="47"></a>
+  <nav><a href="{{ url_for('quizzes_prontos') }}">Quizzes prontos</a><a href="{{ url_for('assine', origem='biblioteca') }}">Teste grátis</a></nav>
+</header>
+<main class="conteudo">
+{% block corpo %}{% endblock %}
+</main>
+<footer class="rodape">
+  <a href="{{ landing_url }}?origem=biblioteca">quizzify.com.br</a>
+  <a href="{{ url_for('quizzes_prontos') }}">Quizzes prontos</a>
+  <a href="{{ url_for('pagina_termos') }}">Termos</a>
+  <a href="{{ url_for('pagina_privacidade') }}">Privacidade</a>
+  <p>Quizzify: seu material (foto do caderno, PDF, Word ou só o tema) vira quiz e flashcards com IA.</p>
+</footer>
+</body>
+</html>

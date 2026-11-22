@@ -1,0 +1,23 @@
+{% extends "_prontos_base.html" %}
+{% block titulo %}Quizzes prontos com gabarito: EBD, concursos e escola | Quizzify{% endblock %}
+{% block descricao %}Quizzes gratuitos com gabarito comentado para Escola Bíblica Dominical, concursos públicos e Ensino Fundamental. Responda no celular, sem cadastro.{% endblock %}
+{% block corpo %}
+<span class="selo">Grátis, sem cadastro</span>
+<h1>Quizzes prontos com gabarito</h1>
+<p class="sub">Responda no celular ou mande o link para a turma. Toda pergunta tem a explicação da resposta certa. Novos quizzes toda semana.</p>
+
+{% for chave, nome, emoji, lista in grupos %}
+<h2 id="{{ chave }}">{{ emoji }} {{ nome }}</h2>
+<div class="cards">
+{% for q in lista %}
+  <a class="card" href="{{ url_for('quiz_pronto', slug=q.slug) }}"><b>{{ q.titulo }}</b><span>{{ q.descricao[:110] }}…</span></a>
+{% endfor %}
+</div>
+{% endfor %}
+
+<section class="cta">
+  <h2>Não achou o tema que precisa?</h2>
+  <p>No Quizzify você cria o seu: foto do caderno, PDF da aula ou só o tema. Teste grátis por {{ horas | duracao }}, com {{ cota }} quizzes, sem cartão.</p>
+  <a class="botao" href="{{ url_for('assine', origem='biblioteca') }}">Criar o meu quiz ➜</a>
+</section>
+{% endblock %}

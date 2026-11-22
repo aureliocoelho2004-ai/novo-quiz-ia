@@ -1,0 +1,62 @@
+{% extends "_prontos_base.html" %}
+{% block titulo %}Quiz: {{ q.titulo }} ({{ itens | length }} perguntas com gabarito) | Quizzify{% endblock %}
+{% block descricao %}{{ q.descricao[:155] }}{% endblock %}
+{% block extra_head %}
+<script type="application/ld+json">{{ {
+  "@context": "https://schema.org", "@type": "Quiz", "name": q.titulo, "description": q.descricao,
+  "inLanguage": "pt-BR", "educationalLevel": publico[0], "url": url_canonica,
+  "provider": {"@type": "Organization", "name": "Quizzify", "url": landing_url}} | tojson }}</script>
+<script type="application/ld+json">{{ {
+  "@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": [
+    {"@type": "ListItem", "position": 1, "name": "Quizzes prontos", "item": url_for('quizzes_prontos', _external=True)},
+    {"@type": "ListItem", "position": 2, "name": q.titulo, "item": url_canonica}] } | tojson }}</script>
+{% endblock %}
+{% block estilo %}
+  .jogo { width: 100%; height: 700px; border: 1px solid var(--linha); border-radius: 18px; background: #160B29; display: block; }
+  .acoes { margin: 14px 0 0; }
+  ol.perguntas { padding-left: 22px; }
+  ol.perguntas li { margin-bottom: 18px; }
+  ol.perguntas ul { margin: 6px 0; padding-left: 18px; color: var(--suave); }
+  details { background: var(--cartao); border: 1px solid var(--linha); border-radius: 12px; padding: 8px 12px; margin-top: 6px; }
+  summary { cursor: pointer; font-weight: 700; color: var(--lima); }
+  .trilha { font-size: 13px; color: var(--suave); }
+  .trilha a { color: var(--suave); }
+{% endblock %}
+{% block corpo %}
+<p class="trilha"><a href="{{ url_for('quizzes_prontos') }}">Quizzes prontos</a> › {{ publico[0] }}</p>
+<span class="selo">{{ publico[1] }} {{ publico[0] }}</span>
+<h1>Quiz: {{ q.titulo }}</h1>
+<p class="sub">{{ q.descricao }}</p>
+
+<iframe class="jogo" src="{{ url_for('quiz_pronto_jogar', slug=q.slug) }}" title="Responder o quiz {{ q.titulo }}" loading="lazy"></iframe>
+<p class="acoes"><a class="botao sec" href="{{ url_for('quiz_pronto_jogar', slug=q.slug) }}" target="_blank" rel="noopener">Abrir em tela cheia</a>
+  <a class="botao sec" href="https://wa.me/?text={{ ('Quiz: ' ~ q.titulo ~ ' — ' ~ url_canonica) | urlencode }}" target="_blank" rel="noopener">Mandar no WhatsApp</a></p>
+
+<section class="cta">
+  <h2>Crie um quiz como este com o seu material</h2>
+  <p>Tire foto do caderno, envie o PDF da aula ou digite só o tema. Em 1 minuto o quiz está pronto, com explicação de cada resposta e link para a turma.
+     Teste grátis por {{ horas | duracao }}, com {{ cota }} quizzes, sem cartão.</p>
+  <a class="botao" href="{{ url_for('assine', origem='biblioteca-' ~ q.publico) }}">Testar grátis ➜</a>
+</section>
+
+<h2>Perguntas e gabarito</h2>
+<ol class="perguntas">
+{% for it in itens %}
+  <li><b>{{ it.pergunta }}</b>
+    <ul>{% for op in it.opcoes %}<li>{{ op }}</li>{% endfor %}</ul>
+    <details><summary>Ver resposta</summary>
+      <p><b>Resposta:</b> {{ it.opcoes[it.correta] }}</p>{% if it.explicacao %}<p>{{ it.explicacao }}</p>{% endif %}
+    </details>
+  </li>
+{% endfor %}
+</ol>
+
+{% if outros %}
+<h2>Outros quizzes prontos</h2>
+<div class="cards">
+{% for o in outros %}
+  <a class="card" href="{{ url_for('quiz_pronto', slug=o.slug) }}"><b>{{ o.titulo }}</b><span>{{ o.descricao[:90] }}…</span></a>
+{% endfor %}
+</div>
+{% endif %}
+{% endblock %}
