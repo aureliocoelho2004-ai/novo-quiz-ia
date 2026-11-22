@@ -28,6 +28,7 @@ log = logging.getLogger("quizify")
 logging.basicConfig(level=logging.INFO)
 
 MAX_ARQUIVOS = 5
+MAX_IMAGENS = int(os.environ.get("MAX_IMAGENS", 10))   # quando todos os arquivos são fotos
 MAX_TOTAL_MB = 50
 MIN_ITENS, MAX_ITENS = 5, 50
 MAX_CARACTERES_TEXTO = 60_000
@@ -502,6 +503,16 @@ def admin_obrigatorio(view):
 # --------------------------------------------------------------------------- #
 def extensao(nome):
     return os.path.splitext(nome or "")[1].lower()
+
+
+def limite_arquivos(arquivos):
+    """Até MAX_IMAGENS quando todos são fotos; senão, MAX_ARQUIVOS."""
+    so_fotos = bool(arquivos) and all(extensao(a.filename) in EXTENSOES_IMG or (a.mimetype or "").startswith("image/")
+                                      for a in arquivos)
+    return MAX_IMAGENS if so_fotos else MAX_ARQUIVOS
+
+
+MSG_LIMITE_ARQUIVOS = f"Envie no máximo {MAX_ARQUIVOS} arquivos, ou até {MAX_IMAGENS} fotos, de cada vez."
 
 
 def extrair_pdf(dados):
@@ -2273,7 +2284,7 @@ def entrar_navegador(token):
 @app.get("/")
 @login_obrigatorio
 def index():
-    return render_template("index.html", max_arquivos=MAX_ARQUIVOS, max_mb=MAX_TOTAL_MB,
+    return render_template("index.html", max_arquivos=MAX_ARQUIVOS, max_imagens=MAX_IMAGENS, max_mb=MAX_TOTAL_MB,
                            min_itens=MIN_ITENS, max_itens=MAX_ITENS,
                            recentes=listar_historico(session["usuario"])[:5])
 
@@ -2611,8 +2622,8 @@ def gerar():
         return jsonify(erro="Envie um arquivo ou foto, ou digite um tema (ex.: Atos 2, Art. 5º da Constituição)."), 400
     if tema and titulo == "Desafio de Conhecimento":
         titulo = tema[:120]
-    if len(arquivos) > MAX_ARQUIVOS:
-        return jsonify(erro=f"Envie no máximo {MAX_ARQUIVOS} arquivos de cada vez."), 400
+    if len(arquivos) > limite_arquivos(arquivos):
+        return jsonify(erro=MSG_LIMITE_ARQUIVOS), 400
     invalidos = [a.filename for a in arquivos
                  if extensao(a.filename) not in EXTENSOES_DOC | EXTENSOES_IMG
                  and not (a.mimetype or "").startswith("image/")]
@@ -2813,7 +2824,7 @@ def comecar():
     restam = max(0, cota - (conta.get("teste_usados") or 0)) if teste else None
     return render_template("comecar.html", t=COMECAR[publico], publico=publico, teste=teste, restam=restam,
                            cota=cota, horas=conta.get("teste_horas") or TESTE_GRATIS_HORAS,
-                           max_arquivos=MAX_ARQUIVOS, max_mb=MAX_TOTAL_MB)
+                           max_arquivos=MAX_ARQUIVOS, max_imagens=MAX_IMAGENS, max_mb=MAX_TOTAL_MB)
 
 
 @app.post("/api/exemplo")
@@ -2867,7 +2878,7 @@ def experimentar():
         return redirect(url_for("comecar", p=publico))
     return render_template("experimentar.html", css_inline=True, publico=publico, t=COMECAR[publico], e=EXPERIMENTAR[publico],
                            cota=TESTE_GRATIS_QUIZZES, horas=TESTE_GRATIS_HORAS,
-                           max_arquivos=MAX_ARQUIVOS, max_mb=MAX_TOTAL_MB)
+                           max_arquivos=MAX_ARQUIVOS, max_imagens=MAX_IMAGENS, max_mb=MAX_TOTAL_MB)
 
 
 @app.post("/api/experimentar")
@@ -2897,8 +2908,8 @@ def api_experimentar():
         material, prefixo, tema = (None, "", None) if arquivos else material_sem_arquivo(request.form)
         if not arquivos and not material:
             return jsonify(erro="Envie um arquivo ou foto, ou digite um tema."), 400
-        if len(arquivos) > MAX_ARQUIVOS:
-            return jsonify(erro=f"Envie no máximo {MAX_ARQUIVOS} arquivos de cada vez."), 400
+        if len(arquivos) > limite_arquivos(arquivos):
+            return jsonify(erro=MSG_LIMITE_ARQUIVOS), 400
         if any(extensao(a.filename) not in EXTENSOES_DOC | EXTENSOES_IMG and not (a.mimetype or "").startswith("image/")
                for a in arquivos):
             return jsonify(erro="Formato não suportado. Use foto, PDF, Word ou PowerPoint."), 400

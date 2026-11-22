@@ -5,7 +5,7 @@
 <p class="text-center text-sm text-lima font-semibold mb-3">👇 Crie o seu primeiro quiz: escolha o arquivo ou a foto e toque em Gerar com IA</p>
 {% endif %}
 <form id="form-gerar" class="space-y-4{{ ' ring-2 ring-lima rounded-2xl p-4' if request.args.get('destaque') }}"
-      data-max-arquivos="{{ max_arquivos }}" data-max-mb="{{ max_mb }}">
+      data-max-arquivos="{{ max_arquivos }}" data-max-imagens="{{ max_imagens }}" data-max-mb="{{ max_mb }}">
     <div class="grid grid-cols-2 gap-2" role="radiogroup">
         <label class="cursor-pointer">
             <input type="radio" name="tipo" value="quiz" class="peer sr-only" checked>
@@ -31,12 +31,12 @@
 
     <div>
         <label for="arquivos" class="block text-sm font-medium mb-2 text-slate-300">
-            Arquivos ou fotos (PDF, Word, PowerPoint, imagens — máx. {{ max_arquivos }})
+            Arquivos ou fotos (PDF, Word, PowerPoint: até {{ max_arquivos }} · só fotos: até {{ max_imagens }})
         </label>
         {#- botão próprio: o do navegador aparece em inglês em alguns celulares #}
         <input type="file" id="arquivos" multiple accept=".pdf,.docx,.pptx,image/*" class="sr-only">
         <label for="arquivos" class="inline-flex items-center gap-2 bg-lima hover:bg-lima-claro text-tinta font-semibold text-sm py-2.5 px-4 rounded-xl cursor-pointer">📎 Escolher arquivos ou fotos</label>
-        <p id="contador-arquivos" class="text-xs text-slate-400 mt-2">Nenhum arquivo selecionado (0/{{ max_arquivos }})</p>
+        <p id="contador-arquivos" class="text-xs text-slate-400 mt-2">Nenhum arquivo selecionado (até {{ max_arquivos }} arquivos ou {{ max_imagens }} fotos)</p>
     </div>
 
     <div>

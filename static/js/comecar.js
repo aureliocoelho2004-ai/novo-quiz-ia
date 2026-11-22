@@ -4,6 +4,9 @@
     if (!raiz) return;
     const publico = raiz.dataset.publico;
     const MAX_ARQUIVOS = Number(raiz.dataset.maxArquivos);
+    const MAX_IMAGENS = Number(raiz.dataset.maxImagens) || 10;
+    const ehFoto = (f) => (f.type || '').startsWith('image/') || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name || '');
+    const limiteDe = (lista) => (lista.length && [...lista].every(ehFoto) ? MAX_IMAGENS : MAX_ARQUIVOS);
     const MAX_BYTES = Number(raiz.dataset.maxMb) * 1024 * 1024;
     let restam = raiz.dataset.restam === '' ? null : Number(raiz.dataset.restam);
     const etapas = ['escolher', 'processando', 'pronto'];
@@ -68,7 +71,7 @@
         erro.textContent = '';
         const lista = [...files];
         if (!lista.length) return;
-        if (lista.length > MAX_ARQUIVOS) return falhar(`Envie no máximo ${MAX_ARQUIVOS} arquivos.`);
+        if (lista.length > limiteDe(lista)) return falhar(`Envie no máximo ${MAX_ARQUIVOS} arquivos, ou até ${MAX_IMAGENS} fotos.`);
         mostrar('processando');
         try {
             const processados = await Promise.all(lista.map(comprimir));

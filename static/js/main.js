@@ -5,6 +5,9 @@
     const status = document.getElementById('status');
     const btnGerar = document.getElementById('btn-gerar');
     const MAX_ARQUIVOS = Number(form.dataset.maxArquivos);
+    const MAX_IMAGENS = Number(form.dataset.maxImagens) || 10;
+    const ehFoto = (f) => (f.type || '').startsWith('image/') || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name || '');
+    const limiteDe = (lista) => (lista.length && [...lista].every(ehFoto) ? MAX_IMAGENS : MAX_ARQUIVOS);
     const MAX_BYTES = Number(form.dataset.maxMb) * 1024 * 1024;
     const LADO_MAXIMO = 1200;
     const QUALIDADE_JPEG = 0.8;
@@ -19,17 +22,21 @@
     // Contador visual e validação do limite de arquivos
     inputArquivos.addEventListener('change', () => {
         const total = inputArquivos.files.length;
+        const limite = limiteDe(inputArquivos.files);
+        const nome = limite === MAX_IMAGENS ? 'fotos' : 'arquivos';
         contador.className = 'text-xs mt-2';
-        if (total > MAX_ARQUIVOS) {
+        if (total > limite) {
             contador.classList.add('text-red-400', 'font-semibold');
-            contador.textContent = `⚠️ Selecionou ${total} arquivos. O limite máximo é ${MAX_ARQUIVOS}!`;
+            contador.textContent = limite === MAX_IMAGENS
+                ? `⚠️ Selecionou ${total} fotos. O limite é ${MAX_IMAGENS}!`
+                : `⚠️ Selecionou ${total} arquivos. O limite é ${MAX_ARQUIVOS} (ou até ${MAX_IMAGENS} se forem só fotos)!`;
             inputArquivos.value = '';
         } else if (total > 0) {
             contador.classList.add('text-green-400');
-            contador.textContent = `✅ ${total} de ${MAX_ARQUIVOS} arquivos selecionados.`;
+            contador.textContent = `✅ ${total} de ${limite} ${nome} selecionados.`;
         } else {
             contador.classList.add('text-slate-400');
-            contador.textContent = `Nenhum arquivo selecionado (0/${MAX_ARQUIVOS})`;
+            contador.textContent = `Nenhum arquivo selecionado (até ${MAX_ARQUIVOS} arquivos ou ${MAX_IMAGENS} fotos)`;
         }
     });
 
@@ -62,7 +69,7 @@
         const arquivos = [...inputArquivos.files];
         const tema = (form.querySelector('#tema')?.value || '').trim();
         if (arquivos.length === 0 && tema.length < 3) return mostrarStatus('Escolha um arquivo ou foto, ou digite um tema.', 'text-red-400');
-        if (arquivos.length > MAX_ARQUIVOS) return mostrarStatus(`Envie no máximo ${MAX_ARQUIVOS} arquivos.`, 'text-red-400');
+        if (arquivos.length > limiteDe(arquivos)) return mostrarStatus(`Envie no máximo ${MAX_ARQUIVOS} arquivos, ou até ${MAX_IMAGENS} fotos.`, 'text-red-400');
 
         btnGerar.disabled = true;
         try {

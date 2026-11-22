@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block titulo %}{{ e.titulo }} - Quizzify{% endblock %}
 {% block conteudo %}
-<section id="experimentar" class="space-y-6 pt-2" data-publico="{{ publico }}" data-max-arquivos="{{ max_arquivos }}"
+<section id="experimentar" class="space-y-6 pt-2" data-publico="{{ publico }}" data-max-arquivos="{{ max_arquivos }}" data-max-imagens="{{ max_imagens }}"
          data-max-mb="{{ max_mb }}" data-palavra="{{ e.palavra }}" data-itens="{{ e.itens }}" data-cota="{{ cota }}">
 
     <!-- 1. Página do anúncio (sem conta) -->

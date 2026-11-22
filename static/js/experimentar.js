@@ -7,6 +7,9 @@
     const nomeItens = raiz.dataset.itens;
     const COTA = Number(raiz.dataset.cota) || 5;
     const MAX_ARQUIVOS = Number(raiz.dataset.maxArquivos);
+    const MAX_IMAGENS = Number(raiz.dataset.maxImagens) || 10;
+    const ehFoto = (f) => (f.type || '').startsWith('image/') || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name || '');
+    const limiteDe = (lista) => (lista.length && [...lista].every(ehFoto) ? MAX_IMAGENS : MAX_ARQUIVOS);
     const MAX_BYTES = Number(raiz.dataset.maxMb) * 1024 * 1024;
     const erro = document.getElementById('erro');
     const etapas = ['escolher', 'processando', 'previa', 'conta'];
@@ -126,7 +129,7 @@
     async function enviar(files) {
         const lista = [...files];
         if (!lista.length) return;
-        if (lista.length > MAX_ARQUIVOS) return falhar(`Envie no máximo ${MAX_ARQUIVOS} arquivos.`);
+        if (lista.length > limiteDe(lista)) return falhar(`Envie no máximo ${MAX_ARQUIVOS} arquivos, ou até ${MAX_IMAGENS} fotos.`);
         mostrar('processando');
         const processados = await Promise.all(lista.map(comprimir));
         if (processados.reduce((s, f) => s + f.size, 0) > MAX_BYTES) return falhar(`O tamanho total excede ${raiz.dataset.maxMb} MB.`);
