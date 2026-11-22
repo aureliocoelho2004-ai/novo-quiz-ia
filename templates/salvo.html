@@ -5,7 +5,7 @@
     <div class="text-5xl">🎉</div>
     <h1 class="text-2xl font-extrabold">Pronto! Seu {{ t.palavra }} foi salvo.</h1>
     {% if restam is not none %}
-    <p class="text-slate-300">Você tem mais <b>{{ restam }} quiz{{ 'zes' if restam != 1 }} grátis</b> nas próximas {{ horas }} horas.</p>
+    <p class="text-slate-300">Você tem mais <b>{{ restam }} quiz{{ 'zes' if restam != 1 }} grátis</b> {{ "nos próximos" if horas >= 72 else "nas próximas" }} {{ horas | duracao }}.</p>
     {% endif %}
     <a href="{{ item.link }}" target="_blank" rel="noopener"
        class="block w-full bg-lima hover:bg-lima-claro text-tinta font-extrabold text-lg py-4 rounded-2xl">Continuar o {{ t.palavra }}</a>

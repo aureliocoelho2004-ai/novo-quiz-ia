@@ -60,7 +60,8 @@
     form.addEventListener('submit', async (evento) => {
         evento.preventDefault();
         const arquivos = [...inputArquivos.files];
-        if (arquivos.length === 0) return mostrarStatus('Selecione pelo menos um arquivo ou foto.', 'text-red-400');
+        const tema = (form.querySelector('#tema')?.value || '').trim();
+        if (arquivos.length === 0 && tema.length < 3) return mostrarStatus('Escolha um arquivo ou foto, ou digite um tema.', 'text-red-400');
         if (arquivos.length > MAX_ARQUIVOS) return mostrarStatus(`Envie no máximo ${MAX_ARQUIVOS} arquivos.`, 'text-red-400');
 
         btnGerar.disabled = true;
@@ -76,7 +77,7 @@
             const dados = new FormData(form);
             processados.forEach((f) => dados.append('arquivos', f, f.name));
 
-            mostrarStatus('🤖 A IA está lendo o material e criando o conteúdo... (pode levar até 1 minuto)');
+            mostrarStatus(arquivos.length ? '🤖 A IA está lendo o material e criando o conteúdo... (pode levar até 1 minuto)' : '🤖 A IA está criando as questões sobre o tema... (pode levar até 1 minuto)');
             const resposta = await fetch('/api/gerar', { method: 'POST', body: dados });
             if (resposta.status === 401) {
                 window.location.href = '/login';

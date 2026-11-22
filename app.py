@@ -33,8 +33,8 @@ MIN_ITENS, MAX_ITENS = 5, 50
 MAX_CARACTERES_TEXTO = 60_000
 LIMITE_DIARIO = int(os.environ.get("LIMITE_DIARIO", 50))           # gerações por utilizador por dia
 LIMITE_TESTE = int(os.environ.get("LIMITE_TESTE", 10))             # gerações por dia em contas de teste
-TESTE_GRATIS_HORAS = int(os.environ.get("TESTE_GRATIS_HORAS", 48))   # teste grátis pelo site (sem cartão)
-TESTE_GRATIS_QUIZZES = int(os.environ.get("TESTE_GRATIS_QUIZZES", 3))
+TESTE_GRATIS_HORAS = int(os.environ.get("TESTE_GRATIS_HORAS", 168))   # teste grátis pelo site (sem cartão)
+TESTE_GRATIS_QUIZZES = int(os.environ.get("TESTE_GRATIS_QUIZZES", 5))
 DURACOES_TESTE = {"24h": 24, "3d": 72, "7d": 168}                  # opções do painel, em horas
 INTERVALO_SEGUNDOS = int(os.environ.get("INTERVALO_SEGUNDOS", 30))  # espera entre gerações
 FUSO_BRASIL = timezone(timedelta(hours=-3))
@@ -45,6 +45,25 @@ PLANOS = {
     "mensal": {"nome": "Mensal", "centavos": int(os.environ.get("PRECO_MENSAL_CENTAVOS", 2990)), "dias": 30},
     "anual": {"nome": "Anual", "centavos": int(os.environ.get("PRECO_ANUAL_CENTAVOS", 19700)), "dias": 365},
 }
+# Oferta de fim de teste: 1º mês mais barato, só para quem usou o teste e nunca pagou.
+# Depois, a renovação volta ao preço normal do mensal (ou a pessoa escolhe o anual).
+PLANO_PRIMEIRO_MES = {"nome": "Mensal (1º mês)", "centavos": int(os.environ.get("PRECO_PRIMEIRO_MES_CENTAVOS", 1990)), "dias": 30}
+
+
+def tem_oferta_primeiro_mes(conta):
+    c = conta or {}
+    usou = (c.get("teste_usados") or 0) > 0 or bool(c.get("primeiro_quiz_em"))
+    return bool(c.get("teste_site") and usou and not c.get("admin") and not c.get("pago_ate")
+                and not c.get("ultimo_pagamento_em") and not c.get("assinado_em"))
+
+
+def plano_por_id(plano_id, conta=None):
+    """Plano normal, ou o 1º mês promocional para quem tem direito (None se não puder)."""
+    if plano_id in PLANOS:
+        return PLANOS[plano_id]
+    if plano_id == "primeiro_mes" and tem_oferta_primeiro_mes(conta):
+        return PLANO_PRIMEIRO_MES
+    return None
 INFINITEPAY_HANDLE = os.environ.get("INFINITEPAY_HANDLE", "").strip().lstrip("$@")
 INFINITEPAY_API = "https://api.checkout.infinitepay.io"
 AVISO_VENCIMENTO_DIAS = 5
@@ -353,6 +372,15 @@ def conta_ainda_existe(usuarios):
     return False
 
 
+@app.template_filter("duracao")
+def duracao(horas):
+    """48 -> "48 horas"; 168 -> "7 dias" (prazos de teste em texto)."""
+    horas = int(horas or 0)
+    if horas >= 72 and horas % 24 == 0:
+        return f"{horas // 24} dias"
+    return f"{horas} horas"
+
+
 @app.template_filter("data_hora")
 def data_hora(timestamp):
     return datetime.fromtimestamp(timestamp, FUSO_BRASIL).strftime("%d/%m às %H:%M")
@@ -564,6 +592,34 @@ PROMPT_FLASH = """Você é um professor experiente. Com base EXCLUSIVAMENTE no m
 (texto e/ou imagens), crie {n} flashcards em português do Brasil com os conceitos mais importantes.
 Responda apenas com um array JSON no formato:
 [{{"frente": "conceito ou pergunta curta", "verso": "explicação ou resposta"}}]"""
+
+
+PROMPT_TEMA = """Você é um professor experiente. Não há arquivo: a pessoa informou apenas um TEMA.
+Use conhecimento consolidado e confiável sobre o tema, no nível adequado (escola, concurso público ou estudo bíblico, conforme o tema).
+Se for um texto bíblico, cite as referências corretas (livro capítulo.versículo). Se for lei, cite o artigo e o inciso corretos.
+Nunca invente fatos, datas ou referências. Se o tema for amplo, foque nos pontos mais importantes e mais cobrados.
+"""
+MIN_TEXTO_COLADO = 300   # abaixo disso, o texto colado é tratado como tema
+
+
+def material_sem_arquivo(form):
+    """Tema digitado ou texto colado, para gerar sem arquivo. Devolve (material, prefixo_do_prompt, tema) ou (None, None, None)."""
+    texto = (form.get("texto") or "").strip()[:30000]
+    tema = re.sub(r"\s+", " ", (form.get("tema") or "").strip())[:200]
+    if len(texto) >= MIN_TEXTO_COLADO:
+        return texto, "", tema
+    if texto and not tema:
+        tema = re.sub(r"\s+", " ", texto)[:200]
+    if len(tema) >= 3:
+        return f"TEMA: {tema}", PROMPT_TEMA, tema
+    return None, None, None
+
+
+def prompt_para(base, prefixo):
+    """Sem arquivo (tema), troca "com base no material" por "com base no tema"."""
+    if not prefixo:
+        return base
+    return prefixo + base.replace("Com base EXCLUSIVAMENTE no material fornecido\n(texto e/ou imagens), crie", "Com base no TEMA informado, crie")
 
 
 def chamar_gemini(prompt, texto, partes):
@@ -778,7 +834,9 @@ def confirmar_pagamento(pedido_id, transacao, slug):
             log.error("Pedido %s pago para conta inexistente %s", pedido_id, pedido["usuario"])
             return False
         conta["pago_ate"] = max(time.time(), conta.get("pago_ate", 0)) + pedido["dias"] * DIA
-        conta["plano"] = pedido["plano"]
+        conta["plano"] = "mensal" if pedido["plano"] == "primeiro_mes" else pedido["plano"]   # renova pelo preço normal
+        if pedido["plano"] == "primeiro_mes":
+            conta["oferta_primeiro_mes_em"] = time.time()
         conta.setdefault("assinado_em", time.time())
         conta["ultimo_pagamento_em"] = time.time()
         conta.pop("cancelado_em", None)
@@ -1306,14 +1364,18 @@ def assinatura():
     if conta:
         atualizar_sessao_assinatura(conta)
     return render_template("assinatura.html", conta=conta or {}, planos=PLANOS, agora=time.time(),
+                           oferta_1o_mes=PLANO_PRIMEIRO_MES if tem_oferta_primeiro_mes(conta) else None,
                            pagamentos_ativos=bool(INFINITEPAY_HANDLE),
                            total_quizzes=len(listar_historico(session["usuario"])),
-                           destaque=plano_escolhido() or "anual")
+                           destaque=("primeiro_mes" if request.args.get("plano") == "primeiro_mes" and tem_oferta_primeiro_mes(conta)
+                                     else plano_escolhido() or "anual"))
 
 
-def iniciar_checkout(plano_id):
+def iniciar_checkout(plano_id, conta=None):
     """Cria o pedido e devolve o link de pagamento da InfinitePay."""
-    plano = PLANOS[plano_id]
+    plano = plano_por_id(plano_id, conta)
+    if not plano:
+        raise ValueError(f"Plano indisponível: {plano_id}")
     pedido_id = uuid.uuid4().hex
     pedido = {"usuario": session["usuario"], "plano": plano_id, "centavos": plano["centavos"],
               "dias": plano["dias"], "status": "pendente", "criado_em": time.time()}
@@ -1325,10 +1387,12 @@ def iniciar_checkout(plano_id):
 @login_obrigatorio
 def assinatura_pagar():
     plano_id = request.form.get("plano")
-    if plano_id not in PLANOS or not INFINITEPAY_HANDLE or not (session.get("assinante") or session.get("expira_em")):
+    conta = carregar_usuarios().get(session["usuario"]) if plano_id == "primeiro_mes" else None
+    if (not plano_por_id(plano_id, conta) or not INFINITEPAY_HANDLE
+            or not (session.get("assinante") or session.get("expira_em") or conta)):
         abort(400)
     try:
-        link = iniciar_checkout(plano_id)
+        link = iniciar_checkout(plano_id, conta)
     except Exception:
         log.exception("Falha ao criar checkout")
         flash("Não foi possível abrir o pagamento agora. Tente novamente em instantes.", "erro")
@@ -1791,9 +1855,30 @@ def email_teste(etapa, nome, conta, total_quizzes):
         titulo = "Seu teste acabou 💾"
         texto = f"Esperamos que tenha gostado!{guardados} Assine para voltar a criar quizzes na hora."
         botao = "Assinar e continuar"
+    if tem_oferta_primeiro_mes(conta):
+        oferta_html, oferta_txt = oferta_primeiro_mes_textos()
+        miolo = f"<p {p}>{texto}</p>{oferta_html}"
+        miolo_txt = f"{re.sub(r'<[^>]+>', '', texto)}\n\n{oferta_txt}\n\nPara entrar, use {nome} e a sua senha."
+        return montar_email(assunto, titulo, miolo, "Quero o 1º mês por " + reais(PLANO_PRIMEIRO_MES["centavos"]),
+                            f"{URL_APP}/assinatura?plano=primeiro_mes", miolo_txt, entrar)
     miolo = f"<p {p}>{texto}</p><p {p}>{precos}<br>Pix ou cartão, liberação imediata.</p>"
     miolo_txt = f"{re.sub(r'<[^>]+>', '', texto)}\n\n{precos_txt}\nPix ou cartão, liberação imediata.\n\nPara entrar, use {nome} e a sua senha."
     return montar_email(assunto, titulo, miolo, botao, planos, miolo_txt, entrar)
+
+
+def oferta_primeiro_mes_textos():
+    """Oferta clara: 1º mês por R$ 19,90; depois R$ 29,90/mês, ou o anual a R$ 16,42/mês."""
+    o = oferta_anual()
+    promo, mensal = reais(PLANO_PRIMEIRO_MES["centavos"]), reais(PLANOS["mensal"]["centavos"])
+    html = ('<div style="border:2px solid #5920AB;border-radius:12px;padding:14px;margin:8px 0 16px">'
+            '<p style="margin:0;font-size:14px;color:#5920AB;font-weight:bold">🎁 Oferta para quem testou</p>'
+            f'<p style="margin:4px 0 0;font-size:18px;font-weight:800">1º mês por {promo}</p>'
+            f'<p style="margin:6px 0 0;font-size:14px;color:#334155">A partir do 2º mês, {mensal}/mês. '
+            f'Ou, se preferir, o plano anual: {o["anual"]}/ano, que sai por {o["por_mes"]}/mês.</p>'
+            '<p style="margin:6px 0 0;font-size:13px;color:#64748b">Pix ou cartão · liberação imediata · 7 dias de garantia</p></div>')
+    texto = (f"Oferta para quem testou: 1º mês por {promo}. A partir do 2º mês, {mensal}/mês. "
+             f"Ou o plano anual: {o['anual']}/ano, que sai por {o['por_mes']}/mês. Pix ou cartão, 7 dias de garantia.")
+    return html, texto
 
 
 def cota_esgotada(conta):
@@ -1823,8 +1908,14 @@ def email_cota_esgotada(nome, conta):
              "que eu possa melhorar? É só responder este e-mail, eu leio todos.\n\n"
              f"Se quiser continuar criando, no plano anual sai por menos de {por_dia} por dia, com 7 dias de garantia. "
              "Tudo o que você já criou continua guardado.\n\nAbraço,\nAurélio - Quizzify")
+    link = f"{URL_APP}/assinatura?plano=anual"
+    if tem_oferta_primeiro_mes(conta):
+        oferta_html, oferta_txt = oferta_primeiro_mes_textos()
+        miolo = miolo.replace(f"<p {p}>Se quiser continuar criando, no plano anual", f"{oferta_html}<p {p}>No plano anual")
+        texto = texto.replace("Se quiser continuar criando, no plano anual", oferta_txt + "\n\nNo plano anual")
+        link = f"{URL_APP}/assinatura?plano=primeiro_mes"
     return montar_email(f"Vi que você já criou seus {cota} quizzes 👏", "Você usou seus quizzes grátis! 🎉",
-                        miolo, "Continuar criando", f"{URL_APP}/assinatura?plano=anual", texto, depois)
+                        miolo, "Continuar criando", link, texto, depois)
 
 
 def enviar_cota_esgotada(nome):
@@ -2496,6 +2587,10 @@ def gerar():
     sem_limite = bool(conta.get("admin"))
     limite = LIMITE_TESTE if conta.get("expira_em") else LIMITE_DIARIO
     if conta.get("teste_cota") is not None and conta.get("expira_em") and conta.get("teste_usados", 0) >= conta["teste_cota"]:
+        if tem_oferta_primeiro_mes(conta):
+            return jsonify(erro=f"Seus {conta['teste_cota']} quizzes grátis acabaram. Continue com o 1º mês por "
+                                f"{reais(PLANO_PRIMEIRO_MES['centavos'])} (depois {reais(PLANOS['mensal']['centavos'])}/mês) "
+                                "— tudo o que você criou fica guardado.", assinar=url_for("assinatura", plano="primeiro_mes")), 402
         return jsonify(erro=f"Seus {conta['teste_cota']} quizzes grátis acabaram. Assine para continuar criando "
                             "— tudo o que você criou fica guardado.", assinar=url_for("assinatura", plano="anual")), 402
 
@@ -2511,8 +2606,11 @@ def gerar():
 
     if tipo not in ("quiz", "flashcards"):
         return jsonify(erro="Tipo inválido."), 400
-    if not arquivos:
-        return jsonify(erro="Envie pelo menos um arquivo ou foto."), 400
+    material, prefixo, tema = (None, "", None) if arquivos else material_sem_arquivo(request.form)
+    if not arquivos and not material:
+        return jsonify(erro="Envie um arquivo ou foto, ou digite um tema (ex.: Atos 2, Art. 5º da Constituição)."), 400
+    if tema and titulo == "Desafio de Conhecimento":
+        titulo = tema[:120]
     if len(arquivos) > MAX_ARQUIVOS:
         return jsonify(erro=f"Envie no máximo {MAX_ARQUIVOS} arquivos de cada vez."), 400
     invalidos = [a.filename for a in arquivos
@@ -2526,19 +2624,22 @@ def gerar():
         if not sem_limite and (aviso := verificar_limite(usuario, limite)):
             return jsonify(erro=aviso), 429
 
-        try:
-            texto, partes = preparar_conteudo(arquivos)
-        except Exception:
-            log.exception("Falha na extração")
-            return jsonify(erro="Não foi possível ler um dos arquivos. Verifique se não está corrompido."), 422
-        if not texto and not partes:
-            return jsonify(erro="Não encontrei texto nos arquivos enviados."), 422
+        if arquivos:
+            try:
+                texto, partes = preparar_conteudo(arquivos)
+            except Exception:
+                log.exception("Falha na extração")
+                return jsonify(erro="Não foi possível ler um dos arquivos. Verifique se não está corrompido."), 422
+            if not texto and not partes:
+                return jsonify(erro="Não encontrei texto nos arquivos enviados."), 422
+        else:
+            texto, partes = material, []
 
         try:
             if tipo == "quiz":
-                itens = normalizar_quiz(chamar_gemini(PROMPT_QUIZ.format(n=n), texto, partes), n)
+                itens = normalizar_quiz(chamar_gemini(prompt_para(PROMPT_QUIZ.format(n=n), prefixo), texto, partes), n)
             else:
-                itens = normalizar_flash(chamar_gemini(PROMPT_FLASH.format(n=n), texto, partes), n)
+                itens = normalizar_flash(chamar_gemini(prompt_para(PROMPT_FLASH.format(n=n), prefixo), texto, partes), n)
         except Exception:
             log.exception("Falha na geração com IA")
             return jsonify(erro="A IA não conseguiu gerar o conteúdo. Tente novamente."), 502
@@ -2793,8 +2894,9 @@ def api_experimentar():
                 return jsonify(erro="Limite de testes sem conta atingido nesta rede. Crie a sua conta grátis para continuar.",
                                cadastrar=True), 429
         arquivos = [a for a in request.files.getlist("arquivos") if a and a.filename]
-        if not arquivos:
-            return jsonify(erro="Envie pelo menos um arquivo ou foto."), 400
+        material, prefixo, tema = (None, "", None) if arquivos else material_sem_arquivo(request.form)
+        if not arquivos and not material:
+            return jsonify(erro="Envie um arquivo ou foto, ou digite um tema."), 400
         if len(arquivos) > MAX_ARQUIVOS:
             return jsonify(erro=f"Envie no máximo {MAX_ARQUIVOS} arquivos de cada vez."), 400
         if any(extensao(a.filename) not in EXTENSOES_DOC | EXTENSOES_IMG and not (a.mimetype or "").startswith("image/")
@@ -2803,21 +2905,24 @@ def api_experimentar():
         with vaga_geracao() as tem_vaga:
             if not tem_vaga:
                 return jsonify(erro="Muitas pessoas gerando quizzes agora. Tente de novo em 1 minuto."), 503
+            if arquivos:
+                try:
+                    texto, partes = preparar_conteudo(arquivos)
+                except Exception:
+                    log.exception("Falha na extração (sem conta)")
+                    return jsonify(erro="Não foi possível ler um dos arquivos. Verifique se não está corrompido."), 422
+                if not texto and not partes:
+                    return jsonify(erro="Não encontrei texto nos arquivos enviados."), 422
+            else:
+                texto, partes = material, []
             try:
-                texto, partes = preparar_conteudo(arquivos)
-            except Exception:
-                log.exception("Falha na extração (sem conta)")
-                return jsonify(erro="Não foi possível ler um dos arquivos. Verifique se não está corrompido."), 422
-            if not texto and not partes:
-                return jsonify(erro="Não encontrei texto nos arquivos enviados."), 422
-            try:
-                itens = normalizar_quiz(chamar_gemini(PROMPT_QUIZ.format(n=10), texto, partes), 10)
+                itens = normalizar_quiz(chamar_gemini(prompt_para(PROMPT_QUIZ.format(n=10), prefixo), texto, partes), 10)
             except Exception:
                 log.exception("Falha na geração com IA (sem conta)")
                 return jsonify(erro="A IA não conseguiu gerar o conteúdo. Tente novamente."), 502
         if not itens:
             return jsonify(erro="A IA devolveu um resultado vazio. Tente novamente."), 502
-        titulo = COMECAR[publico]["titulo_quiz"]
+        titulo = tema[:120] if tema else COMECAR[publico]["titulo_quiz"]
         session["exp_em"] = agora
         with _trava_contadores:
             _experimentos_ip.setdefault(ip, []).append(agora)
@@ -2961,7 +3066,7 @@ def email_ativacao(etapa, nome, conta):
             corpo = ["O próximo passo é transformar o seu material em questões.",
                      "<ol style='font-size:15px;line-height:1.6'><li>Escolha o PDF da apostila, um resumo ou a foto do caderno.</li>"
                      "<li>Envie no Quizzify.</li><li>Em 1 minuto, as questões ficam prontas, com gabarito comentado.</li></ol>"]
-        rodape = f"Você tem {restam} quizzes grátis por {horas} horas. Sem cartão."
+        rodape = f"Você tem {restam} quizzes grátis por {duracao(horas)}. Sem cartão."
     elif etapa == "24h":
         if pais:
             assunto, titulo, botao = "Seu filho tem prova esta semana?", "Uma foto do caderno vira treino para hoje à noite", "Tirar a foto e criar o quiz"

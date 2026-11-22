@@ -11,6 +11,18 @@
             <p class="text-slate-300 mt-2">{{ t.sub }}</p>
         </div>
 
+        <form id="form-tema" class="space-y-2 text-left">
+            <label for="campo-tema" class="block text-sm font-semibold text-slate-200">Qual é o tema da próxima aula ou do seu estudo?</label>
+            <div class="flex gap-2">
+                <input id="campo-tema" name="tema" type="text" maxlength="200" required minlength="3" autocomplete="off"
+                       placeholder="Ex.: Atos 2 ou Art. 5º da CF"
+                       class="flex-1 min-w-0 bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
+                <button class="bg-lima hover:bg-lima-claro text-tinta font-extrabold px-5 rounded-xl shrink-0">Gerar</button>
+            </div>
+            <p class="text-xs text-slate-400">Não precisa de arquivo: a IA monta as questões sobre o tema.</p>
+        </form>
+        <div class="flex items-center gap-3 text-xs text-slate-500"><span class="flex-1 h-px bg-slate-700"></span>ou use o seu material<span class="flex-1 h-px bg-slate-700"></span></div>
+
         {#- dois campos: um abre a câmera direto no celular, o outro a galeria/arquivos #}
         <input type="file" id="campo-camera" accept="image/*" capture="environment" class="sr-only">
         <input type="file" id="campo-arquivo" multiple accept=".pdf,.docx,.pptx,image/*" class="sr-only">
@@ -29,7 +41,7 @@
         <p id="erro" class="text-sm text-red-400 min-h-[1.25rem]" aria-live="polite"></p>
 
         {% if teste %}
-        <p class="text-xs text-slate-400">Seu teste: {{ cota }} quizzes grátis em {{ horas }} horas. Sem cartão.</p>
+        <p class="text-xs text-slate-400">Seu teste: {{ cota }} quizzes grátis em {{ horas | duracao }}. Sem cartão.</p>
         {% endif %}
         <a href="{{ url_for('index', destaque=1) }}" class="inline-block text-sm text-slate-400 underline">Explorar o app primeiro</a>
     </div>

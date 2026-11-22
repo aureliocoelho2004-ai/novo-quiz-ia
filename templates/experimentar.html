@@ -2,11 +2,22 @@
 {% block titulo %}{{ e.titulo }} - Quizzify{% endblock %}
 {% block conteudo %}
 <section id="experimentar" class="space-y-6 pt-2" data-publico="{{ publico }}" data-max-arquivos="{{ max_arquivos }}"
-         data-max-mb="{{ max_mb }}" data-palavra="{{ e.palavra }}" data-itens="{{ e.itens }}">
+         data-max-mb="{{ max_mb }}" data-palavra="{{ e.palavra }}" data-itens="{{ e.itens }}" data-cota="{{ cota }}">
 
     <!-- 1. Página do anúncio (sem conta) -->
     <div id="etapa-escolher" class="space-y-5 text-center">
         <h1 class="text-2xl font-extrabold leading-tight">{{ e.titulo }}</h1>
+        <form id="form-tema" class="space-y-2 text-left">
+            <label for="campo-tema" class="block text-sm font-semibold text-slate-200">Qual é o tema da próxima aula ou do seu estudo?</label>
+            <div class="flex gap-2">
+                <input id="campo-tema" name="tema" type="text" maxlength="200" required minlength="3" autocomplete="off"
+                       placeholder="Ex.: Atos 2 ou Art. 5º da CF"
+                       class="flex-1 min-w-0 bg-slate-900 border border-slate-600 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
+                <button class="bg-lima hover:bg-lima-claro text-tinta font-extrabold px-5 rounded-xl shrink-0">Gerar</button>
+            </div>
+            <p class="text-xs text-slate-400">Não precisa de arquivo: a IA monta as questões sobre o tema.</p>
+        </form>
+        <div class="flex items-center gap-3 text-xs text-slate-500"><span class="flex-1 h-px bg-slate-700"></span>ou use o seu material<span class="flex-1 h-px bg-slate-700"></span></div>
         <input type="file" id="campo-camera" accept="image/*" capture="environment" class="sr-only">
         <input type="file" id="campo-arquivo" multiple accept=".pdf,.docx,.pptx,image/*" class="sr-only">
         <label for="{{ 'campo-camera' if t.botao_camera else 'campo-arquivo' }}"

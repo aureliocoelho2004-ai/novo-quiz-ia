@@ -36,6 +36,24 @@
         {% endif %}
 
         {% if pagamentos_ativos %}
+        {% if oferta_1o_mes %}
+        <form method="post" action="{{ url_for('assinatura_pagar') }}"
+              class="rounded-xl border-2 border-lima bg-slate-900 p-4 space-y-2">
+            <input type="hidden" name="plano" value="primeiro_mes">
+            <div class="flex justify-between items-baseline gap-2">
+                <h3 class="font-bold text-lg">🎁 Oferta para quem testou</h3>
+                <span class="text-xs font-semibold bg-lima text-tinta rounded-full px-2 py-0.5">só o 1º mês</span>
+            </div>
+            <p class="text-2xl font-extrabold">R$ {{ '%.2f' | format(oferta_1o_mes.centavos / 100) | replace('.', ',') }}
+                <span class="text-sm font-normal text-slate-400">no 1º mês</span></p>
+            <p class="text-sm text-slate-300">A partir do 2º mês, <b>R$ {{ '%.2f' | format(planos.mensal.centavos / 100) | replace('.', ',') }}/mês</b>.
+                Ou escolha o anual abaixo, que sai por <b>{{ oferta_anual.por_mes }}/mês</b>.</p>
+            <p class="text-xs text-slate-400">30 dias de acesso · Pix ou cartão · você renova só se quiser</p>
+            <button data-pixel-checkout="primeiro_mes" data-valor="{{ oferta_1o_mes.centavos / 100 }}" class="w-full bg-lima hover:bg-lima-claro text-tinta font-bold py-2.5 rounded-xl transition">
+                Quero o 1º mês por R$ {{ '%.2f' | format(oferta_1o_mes.centavos / 100) | replace('.', ',') }}
+            </button>
+        </form>
+        {% endif %}
         <div class="grid gap-3">
             {% for id in ['anual', 'mensal'] if id in planos %}{% set plano = planos[id] %}
             <form method="post" action="{{ url_for('assinatura_pagar') }}"

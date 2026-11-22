@@ -200,6 +200,11 @@
                     {% if conta.cancelado_em %}<p class="text-red-300">🚫 Cancelou em {{ conta.cancelado_em | data_hora }}</p>{% endif %}
                     {% if conta.experimentou_sem_conta %}<p>🔓 Testou antes de criar a conta (/experimentar)</p>{% endif %}
                     {% if conta.whatsapp %}<p>💬 WhatsApp: +{{ conta.whatsapp }}{% if conta.whatsapp_consentimento_em %} · avisos do teste autorizados{% endif %}{% if conta.ofertas_consentimento_em %} · <b class="text-lima">ofertas autorizadas</b>{% endif %}</p>{% endif %}
+                    {% if conta.whatsapp and (conta.whatsapp_consentimento_em or conta.ofertas_consentimento_em) %}
+                    {% set msg_zap = "Oi! Aqui é o Aurélio, professor e criador do Quizzify. Vi que você se cadastrou para o teste grátis. Quer que eu te ajude a montar o seu primeiro quiz? É só me dizer o tema da sua próxima aula ou do seu estudo." if not conta.primeiro_quiz_em else "Oi! Aqui é o Aurélio, criador do Quizzify. Vi que você já criou quizzes no teste. O que achou? Se tiver qualquer dúvida, é só me chamar por aqui." %}
+                    <a href="https://wa.me/{{ conta.whatsapp }}?text={{ msg_zap | urlencode }}" target="_blank" rel="noopener"
+                       class="inline-block mt-1 rounded-lg border border-[#25D366] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#25D366]/20">💬 Chamar no WhatsApp</a>
+                    {% endif %}
                 </div>
                 {% if conta.pago_ate and not conta.cancelado_em %}
                 <form method="post" class="flex items-center gap-2 text-xs" onsubmit='return confirm({{ ("Registrar cancelamento de " ~ nome ~ "?") | tojson }})'>

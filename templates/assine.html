@@ -196,7 +196,7 @@
             <li>Correção na hora, com a explicação de cada resposta</li>
         </ul>
         <a class="gratis" href="{{ url_for('cadastro', teste=1) }}">🎁 Começar grátis
-            <small>{{ cota }} quizzes em {{ horas }} horas · sem cartão</small></a>
+            <small>{{ cota }} quizzes em {{ horas | duracao }} · sem cartão</small></a>
         <div class="planos">
             <a class="plano anual" data-pixel-checkout="anual" data-valor="{{ anual.centavos / 100 }}" href="{{ url_for('assinar_plano', plano_id='anual') }}">
                 Assinar agora

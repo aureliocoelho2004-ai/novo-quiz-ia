@@ -89,6 +89,29 @@
         }
     }
 
+    document.getElementById('form-tema').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const tema = document.getElementById('campo-tema').value.trim();
+        if (tema.length < 3) return falhar('Digite um tema com pelo menos 3 letras.');
+        erro.textContent = '';
+        mostrar('processando');
+        try {
+            const dados = new FormData();
+            dados.append('tipo', 'quiz');
+            dados.append('quantidade', '10');
+            dados.append('titulo', tema.slice(0, 120));
+            dados.append('divulgar', '1');
+            dados.append('tema', tema);
+            const resposta = await fetch('/api/gerar', { method: 'POST', body: dados });
+            if (resposta.status === 401) { window.location.href = '/login'; return; }
+            const json = await resposta.json().catch(() => ({}));
+            if (!resposta.ok) return falhar(json.erro || `Erro no servidor (${resposta.status}).`, json.assinar);
+            pronto(json);
+        } catch (err) {
+            falhar('Não foi possível gerar agora. Verifique a internet e tente de novo.');
+        }
+    });
+
     document.getElementById('campo-camera').addEventListener('change', (e) => enviar(e.target.files));
     document.getElementById('campo-arquivo').addEventListener('change', (e) => enviar(e.target.files));
 

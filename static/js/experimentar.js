@@ -5,6 +5,7 @@
     const publico = raiz.dataset.publico;
     const palavra = raiz.dataset.palavra;
     const nomeItens = raiz.dataset.itens;
+    const COTA = Number(raiz.dataset.cota) || 5;
     const MAX_ARQUIVOS = Number(raiz.dataset.maxArquivos);
     const MAX_BYTES = Number(raiz.dataset.maxMb) * 1024 * 1024;
     const erro = document.getElementById('erro');
@@ -58,8 +59,8 @@
             ? `Gostou? Salve o ${palavra} e veja as outras ${resto} ${nomeItens}`
             : `Gostou? Salve o seu ${palavra}`;
         document.getElementById('sub-conta').textContent = json.exemplo
-            ? 'Conta grátis, sem cartão. Você ganha 3 quizzes para criar com o seu material.'
-            : 'Conta grátis, sem cartão. Você ganha mais 2 quizzes.';
+            ? `Conta grátis, sem cartão. Você ganha ${COTA} quizzes para criar com o seu material.`
+            : `Conta grátis, sem cartão. Você ganha mais ${COTA - 1} quizzes.`;
         mostrar('previa', 'conta');
         setTimeout(() => document.getElementById('etapa-conta').scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
     }
@@ -134,6 +135,14 @@
         pedir(dados);
     }
 
+    document.getElementById('form-tema').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const tema = document.getElementById('campo-tema').value.trim();
+        if (tema.length < 3) return falhar('Digite um tema com pelo menos 3 letras.');
+        const dados = new FormData();
+        dados.append('tema', tema);
+        pedir(dados);
+    });
     document.getElementById('campo-camera').addEventListener('change', (e) => enviar(e.target.files));
     document.getElementById('campo-arquivo').addEventListener('change', (e) => enviar(e.target.files));
     document.getElementById('btn-exemplo').addEventListener('click', () => {

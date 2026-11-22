@@ -40,6 +40,13 @@
     </div>
 
     <div>
+        <label for="tema" class="block text-sm font-medium mb-2 text-slate-300">Sem arquivo? Digite um tema</label>
+        <input id="tema" name="tema" type="text" maxlength="200" autocomplete="off" placeholder="Ex.: Atos 2, Art. 5º da CF, Ciclo da água"
+               class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
+        <p class="text-xs text-slate-400 mt-1">Se você escolher arquivos, eles têm prioridade sobre o tema.</p>
+    </div>
+
+    <div>
         <label for="quantidade" class="block text-sm font-medium mb-2 text-slate-300">Quantidade ({{ min_itens }} a {{ max_itens }})</label>
         <input id="quantidade" name="quantidade" type="number" min="{{ min_itens }}" max="{{ max_itens }}" value="10" required
                class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-white focus:outline-none focus:border-lima">
