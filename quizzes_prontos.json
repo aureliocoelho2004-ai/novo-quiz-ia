@@ -1,11 +1,66 @@
 [
-  {"slug": "atos-2-pentecostes", "publico": "ebd", "titulo": "Atos 2 – Pentecostes",
-   "descricao": "10 perguntas sobre Atos 2 (a descida do Espírito Santo, o sermão de Pedro e a igreja primitiva), com explicação e referência bíblica em cada resposta. Para revisar na Escola Bíblica Dominical ou mandar no grupo da classe.",
-   "arquivo": "quizzes/quiz_fe4b747b95.html", "publicado": "2026-11-22"},
-  {"slug": "art-5-constituicao-federal", "publico": "concursos", "titulo": "Art. 5º da Constituição Federal – direitos e garantias fundamentais",
-   "descricao": "Simulado com 10 questões no estilo de prova sobre o art. 5º da CF/88, com gabarito comentado e o inciso certo em cada explicação.",
-   "arquivo": "quizzes/quiz_041aece26f.html", "publicado": "2026-11-22"},
-  {"slug": "ciclo-da-agua-6-ano", "publico": "escola", "titulo": "Ciclo da água – Ciências, 6º ano",
-   "descricao": "10 perguntas sobre o ciclo da água (evaporação, condensação, precipitação e infiltração), com a explicação de cada resposta. Para o aluno treinar no celular antes da prova.",
-   "arquivo": "quizzes/quiz_f5c3dc3565.html", "publicado": "2026-11-22"}
+ {
+  "slug": "atos-2-pentecostes",
+  "publico": "ebd",
+  "titulo": "Atos 2 – Pentecostes",
+  "descricao": "10 perguntas sobre Atos 2 (a descida do Espírito Santo, o sermão de Pedro e a igreja primitiva), com explicação e referência bíblica em cada resposta. Para revisar na Escola Bíblica Dominical ou mandar no grupo da classe.",
+  "arquivo": "quizzes/quiz_fe4b747b95.html",
+  "publicado": "2026-11-22"
+ },
+ {
+  "slug": "art-5-constituicao-federal",
+  "publico": "concursos",
+  "titulo": "Art. 5º da Constituição Federal – direitos e garantias fundamentais",
+  "descricao": "Simulado com 10 questões no estilo de prova sobre o art. 5º da CF/88, com gabarito comentado e o inciso certo em cada explicação.",
+  "arquivo": "quizzes/quiz_041aece26f.html",
+  "publicado": "2026-11-22"
+ },
+ {
+  "slug": "ciclo-da-agua-6-ano",
+  "publico": "escola",
+  "titulo": "Ciclo da água – Ciências, 6º ano",
+  "descricao": "10 perguntas sobre o ciclo da água (evaporação, condensação, precipitação e infiltração), com a explicação de cada resposta. Para o aluno treinar no celular antes da prova.",
+  "arquivo": "quizzes/quiz_f5c3dc3565.html",
+  "publicado": "2026-11-22"
+ },
+ {
+  "slug": "bem-aventurancas-mateus-5",
+  "publico": "ebd",
+  "titulo": "Sermão do Monte – as Bem-aventuranças (Mateus 5:1-12)",
+  "descricao": "10 perguntas sobre as Bem-aventuranças de Mateus 5:1-12: quem são os bem-aventurados e o que Jesus promete a cada um. Com explicação e referência bíblica em cada resposta.",
+  "arquivo": "quizzes/quiz_6ebd5a45ae.html",
+  "publicado": "2026-11-22"
+ },
+ {
+  "slug": "lei-8112-provimento-vacancia-estagio-probatorio",
+  "publico": "concursos",
+  "titulo": "Lei 8.112/90 – provimento, vacância e estágio probatório",
+  "descricao": "Simulado com 10 questões sobre a Lei 8.112/90: formas de provimento, prazos de posse e exercício, reversão, reintegração, recondução, vacância e estágio probatório. Gabarito comentado com o artigo de cada resposta.",
+  "arquivo": "quizzes/quiz_bee64b1869.html",
+  "publicado": "2026-11-22"
+ },
+ {
+  "slug": "crase-regras-para-concursos",
+  "publico": "concursos",
+  "titulo": "Crase – regras e casos proibidos (português para concursos)",
+  "descricao": "10 questões de crase no estilo de prova: casos proibidos, facultativos, palavras repetidas, nomes de lugares, locuções e a expressão 'à moda de'. Cada resposta vem explicada.",
+  "arquivo": "quizzes/quiz_f3e9f1a40a.html",
+  "publicado": "2026-11-22"
+ },
+ {
+  "slug": "fracoes-5-ano",
+  "publico": "escola",
+  "titulo": "Frações – Matemática, 5º ano",
+  "descricao": "10 perguntas de frações para o 5º ano: numerador e denominador, fração de uma quantidade, soma com o mesmo denominador, frações equivalentes e impróprias. Com a explicação de cada resposta.",
+  "arquivo": "quizzes/quiz_31ca84eb94.html",
+  "publicado": "2026-11-22"
+ },
+ {
+  "slug": "sistema-solar-5-6-ano",
+  "publico": "escola",
+  "titulo": "Sistema Solar – Ciências, 5º e 6º ano",
+  "descricao": "10 perguntas sobre o Sistema Solar: o Sol, planetas rochosos e gasosos, rotação e translação, Plutão como planeta anão e o cinturão de asteroides. Com a explicação de cada resposta.",
+  "arquivo": "quizzes/quiz_7ce054cf4f.html",
+  "publicado": "2026-11-22"
+ }
 ]
