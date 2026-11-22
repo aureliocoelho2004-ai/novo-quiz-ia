@@ -958,8 +958,8 @@ def registrar_origem():
     guardada = origem_valida(request.cookies.get(COOKIE_ORIGEM))
     if pedida and pedida != guardada:
         g.nova_origem = pedida
-    elif not pedida and not guardada and request.endpoint == "assine":
-        g.nova_origem = origem_atual()           # chegou à /assine sem link marcado
+    elif not pedida and not guardada and request.endpoint in ("assine", "cadastro"):
+        g.nova_origem = origem_atual()           # chegou sem link marcado (ex.: botões do quizzify.com.br → "site")
     if g.get("nova_origem"):
         _em_segundo_plano(somar_metricas, g.nova_origem, visitantes=1)
 
@@ -2586,6 +2586,22 @@ def _quiz_pronto_ou_404(slug):
     if not itens:
         abort(404)
     return q, itens
+
+
+@app.get("/pixel-site.js")
+def pixel_site_js():
+    """Pixel da Meta para o quizzify.com.br (Hostinger): lá basta uma linha <script src=...>."""
+    if not META_PIXEL_ID:
+        corpo = "/* sem pixel */"
+    else:
+        corpo = ("!function(f,b,e,v,n,t,s){if(f.fbq)return;n=f.fbq=function(){n.callMethod?n.callMethod.apply(n,arguments)"
+                 ":n.queue.push(arguments)};if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';n.queue=[];"
+                 "t=b.createElement(e);t.async=!0;t.src=v;s=b.getElementsByTagName(e)[0];s.parentNode.insertBefore(t,s)}"
+                 "(window,document,'script','https://connect.facebook.net/en_US/fbevents.js');"
+                 f"fbq('init',{json.dumps(META_PIXEL_ID)});fbq('track','PageView');")
+    resposta = Response(corpo, mimetype="application/javascript")
+    resposta.headers["Cache-Control"] = "public, max-age=3600"
+    return resposta
 
 
 @app.get("/quizzes")
